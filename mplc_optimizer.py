@@ -3,7 +3,7 @@ import optax
 import jax
 import jax.numpy as np
 import dLux as dl
-
+from complex_aperture import ComplexAperture
 
 class MPLCOptimizer(zdx.Base):
     """
@@ -24,16 +24,20 @@ class MPLCOptimizer(zdx.Base):
         Array of target complex field amplitudes, shape (n_modes, npix, npix).
     wavelengths : np.ndarray
         Array of wavelengths (metres) to simulate, shape (n_wavelengths,).
-    weights : np.ndarray | None
+    wavelength_weights : np.ndarray | None
         Per-wavelength spectral weights, shape (n_wavelengths,). Defaults to
+        uniform weighting when None.
+    mode_weights : np.ndarray | None
+        Per-mode weights for the loss function, shape (n_modes,). Defaults to
         uniform weighting when None.
     """
 
     optics_mplc: dl.LayeredOpticalSystem
     input_modes: np.ndarray
     target_modes: np.ndarray
+    mode_weights: np.ndarray
     wavelengths: np.ndarray
-    weights: np.ndarray
+    wavelength_weights: np.ndarray
 
     def __init__(
         self,
@@ -41,61 +45,75 @@ class MPLCOptimizer(zdx.Base):
         input_modes: np.ndarray,
         target_modes: np.ndarray,
         wavelengths: np.ndarray,
-        weights: np.ndarray | None = None,
+        wavelength_weights: np.ndarray | None = None,
+        mode_weights: np.ndarray | None = None,
     ):
         self.optics_mplc = optics_mplc
         self.input_modes = input_modes
         self.target_modes = target_modes
         self.wavelengths = wavelengths
-        self.weights = (
-            weights
-            if weights is not None
+        self.wavelength_weights = (
+            wavelength_weights
+            if wavelength_weights is not None
             else np.ones(len(wavelengths)) / len(wavelengths)
+        )
+        self.mode_weights = (
+            mode_weights
+            if mode_weights is not None
+            else np.ones(input_modes.shape[0]) / input_modes.shape[0]
         )
 
     # ------------------------------------------------------------------
     # Forward passes
     # ------------------------------------------------------------------
 
-    def get_monochromatic_field(self, wavelength: float) -> np.ndarray:
+    def update_aperture(self, field):
+        optics = self.optics_mplc.set(aperture=ComplexAperture(field))
+        return optics
+
+    def get_monochromatic_field(self, field: np.ndarray, wavelength: float) -> np.ndarray:
         """
         Propagate a single wavelength through the MPLC and return the
         complex output field amplitude array.
         """
-        wf = self.optics_mplc.propagate_mono(wavelength, return_wf=True)
+        optics = self.update_aperture(field)
+        wf = optics.propagate_mono(wavelength, return_wf=True)
         return wf.phasor
 
-    def get_monochromatic_intensity(self, wavelength: float) -> np.ndarray:
+    def get_monochromatic_intensity(self, field: np.ndarray, wavelength: float) -> np.ndarray:
         """
         Propagate a single wavelength through the MPLC and return the
         output intensity (PSF) array.
         """
-        intensity = self.optics_mplc.propagate_mono(wavelength)
+        optics = self.update_aperture(field)
+        intensity = optics.propagate_mono(wavelength)
         return intensity
 
-    def get_spectral_field(self) -> np.ndarray:
+    def get_spectral_field(self, field: np.ndarray) -> np.ndarray:
         """
         Propagate all wavelengths and return the stack of output complex field
         arrays, shape (n_wavelengths, npix, npix).
         """
-        wfs = self.optics_mplc.propagate(self.wavelengths, return_wf=True)
+        optics = self.update_aperture(field)
+        wfs = optics.propagate(self.wavelengths, return_wf=True)
         return wfs.phasor
 
-    def get_spectral_intensity(self) -> np.ndarray:
+    def get_spectral_intensity(self, field: np.ndarray) -> np.ndarray:
         """
         Propagate all wavelengths and return the stack of output intensity
         arrays, shape (n_wavelengths, npix, npix).
         """
-        intensity = self.optics_mplc.propagate(self.wavelengths)
+        optics = self.update_aperture(field)
+        intensity = optics.propagate(self.wavelengths)
         return intensity
 
-    def get_broadband_intensity(self) -> np.ndarray:
+    def get_broadband_intensity(self, field: np.ndarray) -> np.ndarray:
         """
         Propagate all wavelengths and return the spectrally weighted
         intensity sum, shape (npix, npix).
         """
-        intensity = self.get_spectral_intensity()
-        broadband_intensity = np.tensordot(self.weights, intensity, axes=1)
+        intensity = self.get_spectral_intensity(field)
+        broadband_intensity = np.tensordot(self.wavelength_weights, intensity, axes=1)
         return broadband_intensity
 
     # ------------------------------------------------------------------
@@ -106,19 +124,21 @@ class MPLCOptimizer(zdx.Base):
         self, output_field: np.ndarray, target_field: np.ndarray
     ) -> float:
         """
-        Compute the normalised scalar overlap integral between an output
+        Compute the scalar overlap integral between an output
         complex field and a target complex field.
-
-        Returns a value in [0, 1], where 1 is perfect overlap.
         """
-        ...
+        overlap_integral = np.abs(np.sum(output_field * np.conj(target_field))) ** 2
+        return overlap_integral
 
     def overlap_loss(self) -> float:
         """
         Loss based on the mean overlap integral across all target modes.
         Minimising this loss maximises coupling into the target modes.
         """
-        ...
+        loss = 0.0
+        for i, field in enumerate(self.input_modes):
+            loss += self.overlap_integral(self.get_spectral_field(field), self.target_modes[i]) * self.mode_weights[i]
+        return -loss
 
     def intensity_loss(self) -> float:
         """
