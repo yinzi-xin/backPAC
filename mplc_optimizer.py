@@ -1,3 +1,4 @@
+import equinox as eqx
 import zodiax as zdx
 import optax
 import jax
@@ -53,7 +54,7 @@ class MPLCOptimizer():
     def get_spectral_field(self, phase_screens: np.ndarray) -> np.ndarray:
         """
         Propagate all wavelengths and return the stack of output complex field
-        arrays, shape (n_wavelengths, wf_npixels, wf_npixels).
+        arrays, shape (n_modes, n_wavelengths, wf_npixels, wf_npixels).
         """
         output = self.mplc(phase_screens)
         return output
@@ -61,7 +62,7 @@ class MPLCOptimizer():
     def get_spectral_intensity(self, phase_screens: np.ndarray) -> np.ndarray:
         """
         Propagate all wavelengths and return the stack of output intensity
-        arrays, shape (n_wavelengths, wf_npixels, wf_npixels).
+        arrays, shape (n_modes, n_wavelengths, wf_npixels, wf_npixels).
         """
         output_field = self.get_spectral_field(phase_screens)
         intensity = np.abs(output_field) ** 2
@@ -70,7 +71,7 @@ class MPLCOptimizer():
     def get_broadband_intensity(self, phase_screens: np.ndarray) -> np.ndarray:
         """
         Propagate all wavelengths and return the spectrally weighted
-        intensity sum, shape (wf_npixels, wf_npixels).
+        intensity sum, shape (n_modes, wf_npixels, wf_npixels).
         """
         intensity = self.get_spectral_intensity(phase_screens)
         broadband_intensity = np.tensordot(self.wavelength_weights, intensity, axes=1)
@@ -96,10 +97,15 @@ class MPLCOptimizer():
         Minimising this loss maximises coupling into the target modes.
         """
 
-        loss = 0.0
-        for i, field in enumerate(self.mplc.input_modes):
-            loss += self.overlap_integral(self.get_spectral_field(phase_screens), self.mplc.target_modes[i]) * self.mode_weights[i]
-        return -loss
+        output_fields = self.get_spectral_field(phase_screens)
+
+        def per_mode(output_field, target_field, weight):
+            return weight * (1 - self.overlap_integral(output_field, target_field))
+
+        per_mode_losses = eqx.filter_vmap(per_mode)(
+            output_fields, self.mplc.target_modes, self.mode_weights
+        )
+        return np.sum(per_mode_losses)
 
     def intensity_loss(self, phase_screens: np.ndarray) -> float:
         """
