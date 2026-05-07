@@ -3,25 +3,19 @@ import optax
 import jax
 import jax.numpy as np
 import dLux as dl
-from complex_aperture import ComplexAperture
+from mplc_model import MPLC
 
-class MPLCOptimizer(zdx.Base):
+class MPLCOptimizer():
     """
     Optimizer for an MPLC system built with dLux.
 
     Wraps a dLux LayeredOpticalSystem representing the MPLC and exposes
     loss functions, gradient computation, and an optax training loop.
-    Inherits from zdx.Base so the system is a JAX pytree and parameters
-    can be selected by path string for optax-based gradient updates.
 
     Parameters
     ----------
-    optics_mplc : dl.LayeredOpticalSystem
-        The MPLC optical system containing the phase screens to optimise.
-    input_modes : np.ndarray
-        Array of input complex field amplitudes, shape (n_modes, npix, npix).
-    target_modes : np.ndarray
-        Array of target complex field amplitudes, shape (n_modes, npix, npix).
+    mplc: MPLC
+        An instance of the MPLC class, containing the optical system and its parameters.
     wavelengths : np.ndarray
         Array of wavelengths (metres) to simulate, shape (n_wavelengths,).
     wavelength_weights : np.ndarray | None
@@ -32,25 +26,14 @@ class MPLCOptimizer(zdx.Base):
         uniform weighting when None.
     """
 
-    optics_mplc: dl.LayeredOpticalSystem
-    input_modes: np.ndarray
-    target_modes: np.ndarray
-    mode_weights: np.ndarray
-    wavelengths: np.ndarray
-    wavelength_weights: np.ndarray
-
     def __init__(
         self,
-        optics_mplc: dl.LayeredOpticalSystem,
-        input_modes: np.ndarray,
-        target_modes: np.ndarray,
+        mplc: MPLC,
         wavelengths: np.ndarray,
         wavelength_weights: np.ndarray | None = None,
         mode_weights: np.ndarray | None = None,
     ):
-        self.optics_mplc = optics_mplc
-        self.input_modes = input_modes
-        self.target_modes = target_modes
+        self.mplc = mplc
         self.wavelengths = wavelengths
         self.wavelength_weights = (
             wavelength_weights
@@ -60,59 +43,36 @@ class MPLCOptimizer(zdx.Base):
         self.mode_weights = (
             mode_weights
             if mode_weights is not None
-            else np.ones(input_modes.shape[0]) / input_modes.shape[0]
+            else np.ones(self.mplc.input_modes.shape[0]) / self.mplc.input_modes.shape[0]
         )
 
     # ------------------------------------------------------------------
     # Forward passes
     # ------------------------------------------------------------------
 
-    def update_aperture(self, field):
-        optics = self.optics_mplc.set(aperture=ComplexAperture(field))
-        return optics
-
-    def get_monochromatic_field(self, field: np.ndarray, wavelength: float) -> np.ndarray:
-        """
-        Propagate a single wavelength through the MPLC and return the
-        complex output field amplitude array.
-        """
-        optics = self.update_aperture(field)
-        wf = optics.propagate_mono(wavelength, return_wf=True)
-        return wf.phasor
-
-    def get_monochromatic_intensity(self, field: np.ndarray, wavelength: float) -> np.ndarray:
-        """
-        Propagate a single wavelength through the MPLC and return the
-        output intensity (PSF) array.
-        """
-        optics = self.update_aperture(field)
-        intensity = optics.propagate_mono(wavelength)
-        return intensity
-
-    def get_spectral_field(self, field: np.ndarray) -> np.ndarray:
+    def get_spectral_field(self, phase_screens: np.ndarray) -> np.ndarray:
         """
         Propagate all wavelengths and return the stack of output complex field
-        arrays, shape (n_wavelengths, npix, npix).
+        arrays, shape (n_wavelengths, wf_npixels, wf_npixels).
         """
-        optics = self.update_aperture(field)
-        wfs = optics.propagate(self.wavelengths, return_wf=True)
-        return wfs.phasor
+        output = self.mplc(phase_screens)
+        return output
 
-    def get_spectral_intensity(self, field: np.ndarray) -> np.ndarray:
+    def get_spectral_intensity(self, phase_screens: np.ndarray) -> np.ndarray:
         """
         Propagate all wavelengths and return the stack of output intensity
-        arrays, shape (n_wavelengths, npix, npix).
+        arrays, shape (n_wavelengths, wf_npixels, wf_npixels).
         """
-        optics = self.update_aperture(field)
-        intensity = optics.propagate(self.wavelengths)
+        output_field = self.get_spectral_field(phase_screens)
+        intensity = np.abs(output_field) ** 2
         return intensity
 
-    def get_broadband_intensity(self, field: np.ndarray) -> np.ndarray:
+    def get_broadband_intensity(self, phase_screens: np.ndarray) -> np.ndarray:
         """
         Propagate all wavelengths and return the spectrally weighted
-        intensity sum, shape (npix, npix).
+        intensity sum, shape (wf_npixels, wf_npixels).
         """
-        intensity = self.get_spectral_intensity(field)
+        intensity = self.get_spectral_intensity(phase_screens)
         broadband_intensity = np.tensordot(self.wavelength_weights, intensity, axes=1)
         return broadband_intensity
 
@@ -130,24 +90,25 @@ class MPLCOptimizer(zdx.Base):
         overlap_integral = np.abs(np.sum(output_field * np.conj(target_field))) ** 2
         return overlap_integral
 
-    def overlap_loss(self) -> float:
+    def overlap_loss(self, phase_screens: np.ndarray) -> float:
         """
         Loss based on the mean overlap integral across all target modes.
         Minimising this loss maximises coupling into the target modes.
         """
+
         loss = 0.0
-        for i, field in enumerate(self.input_modes):
-            loss += self.overlap_integral(self.get_spectral_field(field), self.target_modes[i]) * self.mode_weights[i]
+        for i, field in enumerate(self.mplc.input_modes):
+            loss += self.overlap_integral(self.get_spectral_field(phase_screens), self.mplc.target_modes[i]) * self.mode_weights[i]
         return -loss
 
-    def intensity_loss(self) -> float:
+    def intensity_loss(self, phase_screens: np.ndarray) -> float:
         """
         MSE between the simulated output intensity and the target intensity
         summed over all modes and wavelengths.
         """
         ...
 
-    def crosstalk_loss(self) -> float:
+    def crosstalk_loss(self, phase_screens: np.ndarray) -> float:
         """
         Penalise power leaking into off-diagonal (undesired) mode pairs.
         Computed from the mode-coupling matrix |<output_i | target_j>|^2.
