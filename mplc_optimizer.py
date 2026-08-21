@@ -41,10 +41,12 @@ class MPLCOptimizer():
             if wavelength_weights is not None
             else np.ones(len(wavelengths)) / len(wavelengths)
         )
+
+        self.num_modes = self.mplc.input_modes.shape[0]
         self.mode_weights = (
             mode_weights
             if mode_weights is not None
-            else np.ones(self.mplc.input_modes.shape[0]) / self.mplc.input_modes.shape[0]
+            else np.ones(self.num_modes) / self.num_modes
         )
 
     # ------------------------------------------------------------------
@@ -81,47 +83,28 @@ class MPLCOptimizer():
     # Loss functions
     # ------------------------------------------------------------------
 
-    def overlap_integral(
-        self, output_field: np.ndarray, target_field: np.ndarray
-    ) -> float:
-        """
-        Compute the scalar overlap integral between an output
-        complex field and a target complex field.
-        """
-        overlap_integral = np.abs(np.sum(output_field * np.conj(target_field))) ** 2
-        return overlap_integral
-
-    def overlap_loss(self, phase_screens: np.ndarray) -> float:
+    def overlap_loss(self, params: list[str]) -> float:
         """
         Loss based on the mean overlap integral across all target modes.
         Minimising this loss maximises coupling into the target modes.
         """
-
-        output_fields = self.get_spectral_field(phase_screens)
-
-        def per_mode(output_field, target_field, weight):
-            return weight * (1 - self.overlap_integral(output_field, target_field))
-
-        per_mode_losses = eqx.filter_vmap(per_mode)(
-            output_fields, self.mplc.target_modes, self.mode_weights
-        )
-        return np.sum(per_mode_losses)
-
-    def intensity_loss(self, phase_screens: np.ndarray) -> float:
-        """
-        MSE between the simulated output intensity and the target intensity
-        summed over all modes and wavelengths.
-        """
         ...
 
-    def crosstalk_loss(self, phase_screens: np.ndarray) -> float:
+    def crosstalk_loss(self, params: list[str]) -> float:
         """
         Penalise power leaking into off-diagonal (undesired) mode pairs.
         Computed from the mode-coupling matrix |<output_i | target_j>|^2.
         """
         ...
 
-    def total_variation_regularisation(self) -> float:
+    def background_scatter_loss(self, params: list[str]) -> float:
+        """
+        Allow power scattered outside the target modes, i.e. into the
+        background.
+        """
+        ...
+
+    def total_variation_regularisation(self, params: list[str]) -> float:
         """
         Total variation regularisation on the phase screens to encourage
         smooth, fabrication-friendly phase profiles.
@@ -130,21 +113,24 @@ class MPLCOptimizer():
 
     def combined_loss(
         self,
+        params: list[str],
         alpha: float = 1.0,
         beta: float = 0.0,
         gamma: float = 0.0,
         delta: float = 0.0,
+        zeta: float = 0.0,
     ) -> float:
         """
         Weighted combination of the available loss terms:
             L = alpha * overlap_loss
               + beta  * intensity_loss
               + gamma * crosstalk_loss
-              + delta * total_variation_regularisation
+              + delta * background_scatter_loss
+              + zeta  * total_variation_regularisation
 
         Parameters
         ----------
-        alpha, beta, gamma, delta : float
+        alpha, beta, gamma, delta, zeta : float
             Scalar weights for each loss term.
         """
         ...
@@ -193,31 +179,31 @@ class MPLCOptimizer():
         ...
 
     # ------------------------------------------------------------------
-    # Optimisation loop
+    # Optimization loop
     # ------------------------------------------------------------------
 
-    def make_optimiser(
+    def make_optimizer(
         self,
         params: list[str],
         learning_rate: float = 1e-3,
-        optimiser: optax.GradientTransformation | None = None,
+        optimizer: optax.GradientTransformation | None = None,
     ) -> tuple[optax.GradientTransformation, optax.OptState]:
         """
-        Initialise an optax optimiser and its state for the given parameter
+        Initialise an optax optimizer and its state for the given parameter
         paths.
 
         Parameters
         ----------
         params : list[str]
-            zodiax path strings for the parameters to optimise.
+            zodiax path strings for the parameters to optimize.
         learning_rate : float
-            Learning rate passed to Adam when no custom optimiser is supplied.
-        optimiser : optax.GradientTransformation | None
-            Custom optax optimiser; defaults to ``optax.adam(learning_rate)``.
+            Learning rate passed to Adam when no custom optimizer is supplied.
+        optimizer : optax.GradientTransformation | None
+            Custom optax optimizer; defaults to ``optax.adam(learning_rate)``.
 
         Returns
         -------
-        optimiser : optax.GradientTransformation
+        optimizer : optax.GradientTransformation
         opt_state : optax.OptState
         """
         ...
@@ -225,7 +211,7 @@ class MPLCOptimizer():
     def train_step(
         self,
         params: list[str],
-        optimiser: optax.GradientTransformation,
+        optimizer: optax.GradientTransformation,
         opt_state: optax.OptState,
         loss_fn: str = "overlap",
         loss_kwargs: dict | None = None,
@@ -242,30 +228,30 @@ class MPLCOptimizer():
         """
         ...
 
-    def optimise(
+    def optimize(
         self,
         params: list[str],
         n_steps: int = 500,
         learning_rate: float = 1e-3,
-        optimiser: optax.GradientTransformation | None = None,
+        optimizer: optax.GradientTransformation | None = None,
         loss_fn: str = "overlap",
         loss_kwargs: dict | None = None,
         log_every: int = 50,
         jit: bool = True,
     ) -> tuple["MPLCOptimizer", list[float]]:
         """
-        Run the full optimisation loop.
+        Run the full optimization loop.
 
         Parameters
         ----------
         params : list[str]
-            zodiax path strings for the parameters to optimise.
+            zodiax path strings for the parameters to optimize.
         n_steps : int
             Number of gradient steps.
         learning_rate : float
-            Learning rate for the default Adam optimiser.
-        optimiser : optax.GradientTransformation | None
-            Custom optax optimiser; overrides ``learning_rate`` when provided.
+            Learning rate for the default Adam optimizer.
+        optimizer : optax.GradientTransformation | None
+            Custom optax optimizer; overrides ``learning_rate`` when provided.
         loss_fn : str
             Loss function to minimise: "overlap", "intensity", "crosstalk",
             or "combined".
@@ -278,7 +264,7 @@ class MPLCOptimizer():
 
         Returns
         -------
-        optimised_model : MPLCOptimizer
+        optimized_model : MPLCOptimizer
             The model after ``n_steps`` updates.
         loss_history : list[float]
             Scalar loss recorded at every step.
