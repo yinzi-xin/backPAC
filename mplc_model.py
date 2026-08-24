@@ -43,16 +43,20 @@ class MPLC(zdx.Base):
     diameter: float
     num_planes: int
     total_length: float
+    target_coordspec_n: int
+    target_coordspec_d: float
     wavelengths: np.ndarray
     wf_npixels: int
     optics: dl.LayeredOpticalSystem
 
-    def __init__(self, input_modes, target_modes, diameter, num_planes, total_length, wavelengths):
+    def __init__(self, input_modes, target_modes, diameter, num_planes, total_length, target_coordspec_n, target_coordspec_d, wavelengths):
         self.input_modes = input_modes
         self.target_modes = target_modes
         self.diameter = diameter
         self.num_planes = num_planes
         self.total_length = total_length
+        self.target_coordspec_n = target_coordspec_n
+        self.target_coordspec_d = target_coordspec_d
         self.wavelengths = wavelengths
         self.wf_npixels = input_modes.shape[1]  # Assuming input_modes has shape (n_modes, wf_npixels, wf_npixels)
 
@@ -62,7 +66,7 @@ class MPLC(zdx.Base):
         # Define the propagator between phase screens
         between_planes = dl.MFTPropagator(
             [
-                ("FreeSpace", dl.ABCDFreeSpace(self.total_length / self.num_planes)),
+                ("FreeSpace", dl.ABCDFreeSpace(self.total_length / (self.num_planes))),
             ],
             dl.CoordSpec(n=self.wf_npixels, d=self.diameter / self.wf_npixels),
         )
@@ -77,6 +81,16 @@ class MPLC(zdx.Base):
             layers_mplc.append((f"phase_screen_{i}", phase_screen))
             if i < num_planes - 1:
                 layers_mplc.append((f"between_planes_{i}", between_planes))
+
+        # Define the propagator to the output plane
+        output_propagator = dl.MFTPropagator(
+            [
+                ("FreeSpace", dl.ABCDFreeSpace(self.total_length / (self.num_planes))),
+            ],
+            dl.CoordSpec(n=self.target_coordspec_n, d=self.target_coordspec_d),
+        )
+
+        layers_mplc.append(("output_propagator", output_propagator))
 
         # Construct the optics object for the MPLC
         self.optics = dl.LayeredOpticalSystem(
@@ -107,7 +121,7 @@ class MPLC(zdx.Base):
 
         between_planes = dl.MFTPropagator(
             [
-                ("FreeSpace", dl.ABCDFreeSpace(total_length / self.num_planes)),
+                ("FreeSpace", dl.ABCDFreeSpace(total_length / (self.num_planes))),
             ],
             dl.CoordSpec(n=self.wf_npixels, d=self.diameter / self.wf_npixels),
         )
@@ -118,6 +132,16 @@ class MPLC(zdx.Base):
             )
             if i < self.num_planes - 1:
                 optics = optics.set(f"between_planes_{i}", between_planes)
+
+        output_propagator = dl.MFTPropagator(
+            [
+                ("FreeSpace", dl.ABCDFreeSpace(total_length / (self.num_planes))),
+            ],
+            dl.CoordSpec(n=self.target_coordspec_n, d=self.target_coordspec_d),
+        )
+        
+        optics = optics.set("output_propagator", output_propagator)
+
         return optics
 
     def __call__(self, phase_screens: np.ndarray, total_length: float) -> np.ndarray:
