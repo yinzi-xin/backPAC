@@ -18,7 +18,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 Create the project's virtual environment and install the dependencies from the lock file.
 
 ```bash
-uv sync
+uv sync --dev
 ```
 
 This creates a `.venv` environment and installs the dependencies specified by `uv.lock`.
