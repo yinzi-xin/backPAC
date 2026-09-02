@@ -234,8 +234,8 @@ wheels = [
 
 [[package]]
 name = "dlux"
-version = "0.16.0"
-source = { git = "https://github.com/LouisDesdoigts/dLux.git#6ef8abe4cd800801b9df75e9a39385788f79a420" }
+version = "0.15.1"
+source = { git = "https://github.com/LouisDesdoigts/dLux.git?tag=v0.15.1#46534b52bde3e1684ca1b43c979cd8c111be7f0f" }
 dependencies = [
     { name = "abcdlux" },
     { name = "interpax" },
@@ -736,14 +736,14 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "cmocean", specifier = ">=4.0.3" },
-    { name = "dlux", git = "https://github.com/LouisDesdoigts/dLux.git" },
+    { name = "dlux", git = "https://github.com/LouisDesdoigts/dLux.git?tag=v0.15.1" },
     { name = "jax" },
     { name = "matplotlib" },
     { name = "numpy" },
     { name = "optax" },
     { name = "scipy" },
     { name = "tqdm", specifier = ">=4.70.0" },
-    { name = "zodiax", git = "https://github.com/LouisDesdoigts/zodiax.git" },
+    { name = "zodiax", git = "https://github.com/LouisDesdoigts/zodiax.git?tag=v0.5.0" },
 ]
 
 [package.metadata.requires-dev]
@@ -1242,7 +1242,7 @@ wheels = [
 [[package]]
 name = "zodiax"
 version = "0.5.0"
-source = { git = "https://github.com/LouisDesdoigts/zodiax.git#828234e5630a0faeab4a8693d3c758f9cd819cc0" }
+source = { git = "https://github.com/LouisDesdoigts/zodiax.git?tag=v0.5.0#598f15897cbb8364ab1c809fa6e86d380e40745e" }
 dependencies = [
     { name = "equinox" },
     { name = "jax" },
