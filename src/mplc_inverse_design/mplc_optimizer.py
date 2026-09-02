@@ -4,7 +4,7 @@ import optax
 import jax
 import jax.numpy as np
 import dLux as dl
-from mplc_model import MPLC
+from .mplc_model import MPLC
 
 class MPLCOptimizer():
     """
