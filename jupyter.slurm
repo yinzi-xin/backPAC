@@ -16,7 +16,7 @@ module load CUDA/12.3.2
 echo "Running the notebook on $(hostname)"
 IPADDR=$(hostname -i)
 
-cd /home/xiny1/mplc-inverse-design/
+cd /home/xiny1/backPAC/
 unset LD_LIBRARY_PATH # https://github.com/jax-ml/jax/issues/28929
 
 source .venv/bin/activate
