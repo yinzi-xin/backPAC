@@ -1,5 +1,5 @@
 [project]
-name = "mplc-inverse-design"
+name = "backPAC"
 version = "0.1.0"
 description = "Add your description here"
 authors = [
@@ -23,7 +23,7 @@ zodiax = { git = "https://github.com/LouisDesdoigts/zodiax.git", tag = "v0.5.0" 
 dlux = { git = "https://github.com/LouisDesdoigts/dLux.git", tag="v0.15.1" }
 
 [project.scripts]
-mplc-inverse-design = "mplc_inverse_design:main"
+backPAC = "backPAC:main"
 
 [build-system]
 requires = ["uv_build>=0.12.9,<0.13.0"]
