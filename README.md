@@ -5,8 +5,8 @@ This project uses [uv](https://docs.astral.sh/uv/) for Python environment and de
 Clone the repository and enter the project directory.
 
 ```bash
-git clone git@github.com:yinzi-xin/mplc-inverse-design.git
-cd mplc-inverse-design
+git clone git@github.com:yinzi-xin/backPAC.git
+cd backPAC
 ```
 
 Install `uv` if it is not already installed.
@@ -19,6 +19,12 @@ Create the project's virtual environment and install the dependencies from the l
 
 ```bash
 uv sync --dev
+```
+
+or, if running on Leiden University's ALICE cluster:
+
+```bash
+uv sync --group alice
 ```
 
 This creates a `.venv` environment and installs the dependencies specified by `uv.lock`.
