@@ -42,7 +42,7 @@ c.ServerApp.password = u'sha256:${SALT}:${PASSWORD_SHA}'
 c.ServerApp.base_url = '/node/$(hostname)/${port}/'
 c.ServerApp.open_browser = False
 c.ServerApp.allow_origin = '*'
-c.ServerApp.root_dir = '${HOME}/mplc-inverse-design/'
+c.ServerApp.root_dir = '${HOME}/backPAC/'
 c.ServerApp.disable_check_xsrf = True
 EOL
 )
