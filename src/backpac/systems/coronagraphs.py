@@ -66,24 +66,45 @@ class MPLCCoronagraph(zdx.Base):
 
         return eqx.filter_vmap(propagate_mode)(self.input_modes)
 
-def calc_eta(mplc_system, position):
+def calc_eta_modal(mplc_coronagraph, position):
     """
-    Calculate the throughput (eta) of an MPLC system for a given input position.
+    Calculate the throughput (eta) per output mode of an MPLC system for a
+    given input position.
 
     Parameters
     ----------
-    mplc_system : MPLCSystem
-        The MPLC system to evaluate.
+    mplc_coronagraph : MPLCCoronagraph
+        The MPLC coronagraph to evaluate.
     position : tuple
         The (x, y) coordinates of the input position in the input plane.
 
     Returns
     -------
     eta : float
-        The throughput of the MPLC system for the given input position.
+        The modal throughput of the MPLC system for the given input position.
     """
     
-    return NotImplementedError("calc_eta function is not yet implemented.")
+    return NotImplementedError("calc_eta_modal function is not yet implemented.")
+
+def calc_eta_aperture(mplc_coronagraph, position):
+    """
+    Calculate the throughput (eta) within a photometric aperture surrounding the
+    outputs of an MPLC system for a given input position.
+
+    Parameters
+    ----------
+    mplc_coronagraph : MPLCCoronagraph
+        The MPLC coronagraph to evaluate.
+    position : tuple
+        The (x, y) coordinates of the input position in the input plane.
+
+    Returns
+    -------
+    eta : float
+        The aperture throughput of the MPLC system for the given input position.
+    """
+    
+    return NotImplementedError("calc_eta_aperture function is not yet implemented.")
 
 def gen_star_positions(diameter, n_across):
     """
@@ -110,16 +131,16 @@ def gen_star_positions(diameter, n_across):
     star_positions = star_positions[np.linalg.norm(star_positions, axis=1) <= diameter/ 2]
     return star_positions
 
-def loss_negative_log_cfi(mplc_systems, star_positions, planet_position, planet_c):
+def loss_negative_log_cfi_aperture(mplc_coronagraphs, star_positions, planet_position, planet_c):
     """
     Negative log10 Classical Fisher Information (CFI) loss: measures -log10(CFI)
     of planet_c under photon-noise statistics, where CFI is averaged over all
-    MPLC systems.
+    MPLC coronagraphs.
 
     Parameters
     ----------
-    mplc_systems : Sequence[MPLCSystem]
-        MPLC systems to evaluate.
+    mplc_coronagraphs : Sequence[MPLCCoronagraph]
+        MPLC coronagraphs to evaluate.
     star_positions : np.ndarray
         Array of (x, y) input-plane positions to sample the star over, shape
         (n_positions, 2).
@@ -135,15 +156,15 @@ def loss_negative_log_cfi(mplc_systems, star_positions, planet_position, planet_
     """
 
     total_cfi = 0
-    for mplc_system in mplc_systems:
+    for mplc_coronagraph in mplc_coronagraphs:
         #calculate average eta_s over the star positions
-        eta_s = eqx.filter_vmap(calc_eta, in_axes=(None, 0))(mplc_system, star_positions)
+        eta_s = eqx.filter_vmap(calc_eta_aperture, in_axes=(None, 0))(mplc_coronagraph, star_positions)
         avg_eta_s = np.mean(eta_s)
 
         #calculate eta_p for the planet position
-        eta_p = calc_eta(mplc_system, planet_position)
+        eta_p = calc_eta_aperture(mplc_coronagraph, planet_position)
 
         cfi = np.sum((eta_p - avg_eta_s)**2 / ( (1-planet_c) * avg_eta_s + planet_c * eta_p ))
 
         total_cfi += cfi
-    return - np.log10(total_cfi / len(mplc_systems))
+    return - np.log10(total_cfi / len(mplc_coronagraphs))
