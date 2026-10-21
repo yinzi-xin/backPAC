@@ -2,7 +2,7 @@ import jax.numpy as np
 import dLux as dl
 import equinox as eqx
 import zodiax as zdx
-from .mplc_model import MPLC, InputField
+from ..mplc_model import MPLC, InputField
 
 class MPLCSystem(zdx.Base):
     """
