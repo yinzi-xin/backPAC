@@ -1,8 +1,10 @@
+import jax
 import jax.numpy as np
 import dLux as dl
 import equinox as eqx
 import zodiax as zdx
 from ..mplc_model import MPLC, InputField
+from ..utils.operations import bin_phase_screens, mask_to_beam_size
 
 class MPLCSystem(zdx.Base):
     """
@@ -19,6 +21,8 @@ class MPLCSystem(zdx.Base):
         Diameter of the MPLC system.
     array_diameter : float
         Diameter of the array of the simulation.
+    bin_size : int
+        Size of the binning to apply to the phase screens.
     num_planes : int
         Number of phase screens in the MPLC system.
     total_length : float
@@ -32,15 +36,17 @@ class MPLCSystem(zdx.Base):
     target_modes: np.ndarray
     diameter: float
     array_diameter: float
+    bin_size: int
     wavelengths: np.ndarray
     wf_npixels: int
     mplc: MPLC
 
-    def __init__(self, input_modes, target_modes, diameter, array_diameter, num_planes, total_length, target_coordspec_n, target_coordspec_d, wavelengths):
+    def __init__(self, input_modes, target_modes, diameter, array_diameter, bin_size, num_planes, total_length, target_coordspec_n, target_coordspec_d, wavelengths):
         self.input_modes = input_modes
         self.target_modes = target_modes
         self.diameter = diameter
         self.array_diameter = array_diameter
+        self.bin_size = bin_size
         self.wavelengths = wavelengths
         self.wf_npixels = input_modes.shape[1]  # Assuming input_modes has shape (n_modes, wf_npixels, wf_npixels)
 
@@ -54,6 +60,30 @@ class MPLCSystem(zdx.Base):
             target_coordspec_d=target_coordspec_d,
         )
 
+    def with_params(self, params: dict) -> "MPLCSystem":
+        """
+        Derive the physical phase screens from raw optimizable `params` and
+        return a new `MPLCSystem` with them applied.
+
+        Parameters
+        ----------
+        params : dict
+            Raw optimizable parameters, with keys "phase_screens" (pre-bin,
+            pre-mask) and "total_length".
+
+        Returns
+        -------
+        MPLCSystem
+            A new instance with the binned and beam-masked phase screens and
+            the updated total length set on its `mplc` layer.
+        """
+        phase_screens = params["phase_screens"]
+        n = phase_screens.shape[-1]
+        binned_phase_screens = bin_phase_screens(phase_screens, self.bin_size)
+        filtered_phase_screens = mask_to_beam_size(binned_phase_screens, npixels=n, diameter=self.diameter, array_diameter=self.array_diameter)
+
+        return self.set("mplc.phase_screens", filtered_phase_screens).set("mplc.total_length", params["total_length"])
+
     def __call__(self) -> np.ndarray:
         """
         Propagate every input mode, at every wavelength, through the MPLC system.
@@ -66,7 +96,7 @@ class MPLCSystem(zdx.Base):
         """
 
         def propagate_mode(mode: np.ndarray) -> np.ndarray:
-            input_layer = InputField(field=mode, diameter=self.diameter)
+            input_layer = InputField(field=mode, array_diameter=self.array_diameter)
 
             def propagate_wavelength(wavelength: np.ndarray) -> np.ndarray:
                 wavefront = dl.Wavefront(wavelength, self.wf_npixels, diameter=self.diameter)
@@ -78,16 +108,36 @@ class MPLCSystem(zdx.Base):
 
         return eqx.filter_vmap(propagate_mode)(self.input_modes)
 
-def loss_WFM(mplc_systems):
+def stack_systems(mplc_systems) -> MPLCSystem:
     """
-    Wavefront matching loss: for each `MPLCSystem`, propagate its input modes
-    through the system and measure how well the outputs overlap with the
-    target modes, averaged over all systems.
+    Combine same-structure `MPLCSystem`s into a single batched `MPLCSystem`
+    pytree with a leading system axis on every leaf, suitable for `eqx.filter_vmap`.
 
     Parameters
     ----------
     mplc_systems : Sequence[MPLCSystem]
-        MPLC systems to evaluate.
+        MPLC systems to stack. Must all share the same pytree structure
+        (e.g. same array shapes, num_planes, etc.).
+
+    Returns
+    -------
+    MPLCSystem
+        A single `MPLCSystem` whose leaves are the stacked leaves of the
+        inputs, with shape `(n_systems, ...)`.
+    """
+    return jax.tree_util.tree_map(lambda *leaves: np.stack(leaves), *mplc_systems)
+
+def loss_WFM(batched_system: MPLCSystem):
+    """
+    Wavefront matching loss: propagate every system's input modes through it
+    and measure how well the outputs overlap with the target modes, averaged
+    over all systems.
+
+    Parameters
+    ----------
+    batched_system : MPLCSystem
+        A single `MPLCSystem` batched over systems (leading axis on every
+        leaf), as produced by `stack_systems`.
 
     Returns
     -------
@@ -96,8 +146,7 @@ def loss_WFM(mplc_systems):
         between the propagated output modes and their target modes, summed
         over wavelengths and modes. A perfect match yields a loss of 0.
     """
-    total_loss = 0
-    for mplc_system in mplc_systems:
+    def per_system_loss(mplc_system):
         #propagate every input mode through the MPLC system
         res = mplc_system()
 
@@ -109,7 +158,7 @@ def loss_WFM(mplc_systems):
         overlap = np.sum(np.conj(res) * target_modes_expanded, axis=(-2, -1))
 
         #calculate the loss as 1 - the mean of the squared magnitude of the overlap
-        loss = 1 - np.mean(np.abs(overlap)**2)
+        return 1 - np.mean(np.abs(overlap)**2)
 
-        total_loss += loss
-    return total_loss / len(mplc_systems)
+    losses = eqx.filter_vmap(per_system_loss)(batched_system)
+    return np.mean(losses)
