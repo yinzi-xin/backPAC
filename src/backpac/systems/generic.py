@@ -16,6 +16,9 @@ class MPLCSystem(zdx.Base):
     target_modes : np.ndarray
         Array of target complex field amplitudes, shape (n_modes, wf_npixels, wf_npixels).
     diameter : float
+        Diameter of the MPLC system.
+    array_diameter : float
+        Diameter of the array of the simulation.
     num_planes : int
         Number of phase screens in the MPLC system.
     total_length : float
@@ -28,14 +31,16 @@ class MPLCSystem(zdx.Base):
     input_modes: np.ndarray
     target_modes: np.ndarray
     diameter: float
+    array_diameter: float
     wavelengths: np.ndarray
     wf_npixels: int
     mplc: MPLC
 
-    def __init__(self, input_modes, target_modes, diameter, num_planes, total_length, target_coordspec_n, target_coordspec_d, wavelengths):
+    def __init__(self, input_modes, target_modes, diameter, array_diameter, num_planes, total_length, target_coordspec_n, target_coordspec_d, wavelengths):
         self.input_modes = input_modes
         self.target_modes = target_modes
         self.diameter = diameter
+        self.array_diameter = array_diameter
         self.wavelengths = wavelengths
         self.wf_npixels = input_modes.shape[1]  # Assuming input_modes has shape (n_modes, wf_npixels, wf_npixels)
 
@@ -43,7 +48,7 @@ class MPLCSystem(zdx.Base):
             phase_screens=np.zeros((num_planes, self.wf_npixels, self.wf_npixels)),
             total_length=total_length,
             num_planes=num_planes,
-            diameter=diameter,
+            array_diameter=array_diameter,
             wf_npixels=self.wf_npixels,
             target_coordspec_n=target_coordspec_n,
             target_coordspec_d=target_coordspec_d,

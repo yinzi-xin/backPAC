@@ -3,15 +3,15 @@ import dLux as dl
 
 class InputField(dl.OpticalLayer):
     field: np.ndarray
-    diameter: float
+    array_diameter: float
 
-    def __init__(self, field, diameter):
+    def __init__(self, field, array_diameter):
         self.field = field
-        self.diameter = diameter
+        self.array_diameter = array_diameter
 
     def __call__(self, wavefront):
         wavelength = wavefront.wavelength
-        wavefront = wavefront.from_phasor(self.field, wavelength, diameter=self.diameter)
+        wavefront = wavefront.from_phasor(self.field, wavelength, diameter=self.array_diameter)
         wavefront = wavefront.normalise()
         return wavefront
 
@@ -28,7 +28,8 @@ class MPLC(dl.OpticalLayer):
         Total length of the MPLC system (distance from input to output).
     num_planes : int
         Number of phase screens in the MPLC system.
-    diameter : float
+    array_diameter : float
+        Diameter of the array of the simulation.
     wf_npixels : int
         Number of pixels representing the wavefront at each phase screen.
     target_coordspec_n : int
@@ -37,16 +38,16 @@ class MPLC(dl.OpticalLayer):
     phase_screens: np.ndarray
     total_length: float
     num_planes: int
-    diameter: float
+    array_diameter: float
     wf_npixels: int
     target_coordspec_n: int
     target_coordspec_d: float
 
-    def __init__(self, phase_screens, total_length, num_planes, diameter, wf_npixels, target_coordspec_n, target_coordspec_d):
+    def __init__(self, phase_screens, total_length, num_planes, array_diameter, wf_npixels, target_coordspec_n, target_coordspec_d):
         self.phase_screens = np.asarray(phase_screens, dtype=float)
         self.total_length = np.asarray(total_length, dtype=float)
         self.num_planes = num_planes
-        self.diameter = diameter
+        self.array_diameter = array_diameter
         self.wf_npixels = wf_npixels
         self.target_coordspec_n = target_coordspec_n
         self.target_coordspec_d = target_coordspec_d
@@ -56,7 +57,7 @@ class MPLC(dl.OpticalLayer):
             [
                 ("FreeSpace", dl.ABCDFreeSpace(self.total_length / self.num_planes)),
             ],
-            dl.CoordSpec(n=self.wf_npixels, d=self.diameter / self.wf_npixels),
+            dl.CoordSpec(n=self.wf_npixels, d=self.array_diameter / self.wf_npixels),
         )
 
         for i in range(self.num_planes):
