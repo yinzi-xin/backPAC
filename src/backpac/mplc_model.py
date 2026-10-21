@@ -39,7 +39,7 @@ class MPLC(dl.OpticalLayer):
     phase_screens: np.ndarray
     total_length: float
     num_planes: int
-    diameter: float
+    array_diameter: float
     wf_npixels: int
     target_coordspec: dl.CoordSpec
 
