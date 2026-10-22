@@ -1,3 +1,4 @@
+import jax
 import jax.numpy as np
 import dLux.utils as dlu
 
@@ -62,3 +63,34 @@ def mask_to_beam_size(phase_screens, npixels, diameter, array_diameter, oversamp
     masked_phase_screens = phase_screens * mask
 
     return masked_phase_screens
+
+def _shift(image, shift):
+    """Shift a 2D image by a (possibly non-integer) number of pixels using the Fourier shift theorem."""
+    ny, nx = image.shape
+    fy, fx = np.meshgrid(np.fft.fftfreq(ny), np.fft.fftfreq(nx), indexing='ij')
+    phase_ramp = np.exp(-2j * np.pi * (fy * shift[0] + fx * shift[1]))
+    return np.real(np.fft.ifft2(np.fft.fft2(image) * phase_ramp))
+
+def apply_random_shifts(phase_screens, key, sigma_pix = 1.0):
+    """Apply random shifts in X and Y to each phase screen in the array.
+
+    Parameters
+    ----------
+    phase_screens : ndarray
+        Array of phase screens, shaped `(num_planes, n, n)`.
+    key : jax.random.PRNGKey
+        PRNG key used to generate the random shifts.
+    sigma_pix : float, optional
+        Standard deviation of the random shifts in pixels, by default 1.0.
+
+    Returns
+    -------
+    ndarray
+        Phase screens with random shifts applied.
+    """
+    num_planes, n, _ = phase_screens.shape
+    shifts = sigma_pix * jax.random.normal(key, shape=(num_planes, 2))
+
+    shifted_phase_screens = jax.vmap(_shift)(phase_screens, shifts)
+
+    return shifted_phase_screens
