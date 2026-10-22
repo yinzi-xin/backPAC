@@ -36,9 +36,9 @@ class MPLCSystem(zdx.Base):
     target_modes: np.ndarray
     diameter: float
     array_diameter: float
-    bin_size: int
+    bin_size: int = eqx.field(static=True)
     wavelengths: np.ndarray
-    wf_npixels: int
+    wf_npixels: int = eqx.field(static=True)
     mplc: MPLC
 
     def __init__(self, input_modes, target_modes, diameter, array_diameter, bin_size, num_planes, total_length, target_coordspec_n, target_coordspec_d, wavelengths):

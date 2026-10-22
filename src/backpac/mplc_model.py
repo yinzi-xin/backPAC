@@ -1,5 +1,6 @@
 import jax.numpy as np
 import dLux as dl
+import equinox as eqx
 
 class InputField(dl.OpticalLayer):
     field: np.ndarray
@@ -37,10 +38,10 @@ class MPLC(dl.OpticalLayer):
     """
     phase_screens: np.ndarray
     total_length: float
-    num_planes: int
+    num_planes: int = eqx.field(static=True)
     array_diameter: float
-    wf_npixels: int
-    target_coordspec_n: int
+    wf_npixels: int = eqx.field(static=True)
+    target_coordspec_n: int = eqx.field(static=True)
     target_coordspec_d: float
 
     def __init__(self, phase_screens, total_length, num_planes, array_diameter, wf_npixels, target_coordspec_n, target_coordspec_d):
