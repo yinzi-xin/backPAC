@@ -23,7 +23,7 @@ source .venv/bin/activate
 port=8988
 
 SALT="$(head /dev/urandom | tr -dc 'A-Z-a-z-0-9' | head -c 24;echo;)"
-password="13e17121t2"
+password="yourpassword"  # Replace with your desired password
 PASSWORD_SHA="$(echo -n "${password}${SALT}" | openssl dgst -sha256 | awk '{print $NF}')"
 echo "-------------------------"
 echo "Log in using the password: $password"
