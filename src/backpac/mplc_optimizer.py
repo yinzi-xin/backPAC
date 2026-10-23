@@ -4,19 +4,19 @@ import optax
 import jax
 import jax.numpy as np
 import dLux as dl
-from .mplc_model import MPLC
+from .mplc_model import MPLCSystem
 
 class MPLCOptimizer():
     """
     Optimizer for an MPLC system built with dLux.
 
-    Wraps a dLux LayeredOpticalSystem representing the MPLC and exposes
+    Wraps an `MPLCSystem` (which itself wraps the `MPLC` OpticalLayer) and exposes
     loss functions, gradient computation, and an optax training loop.
 
     Parameters
     ----------
-    mplc: MPLC
-        An instance of the MPLC class, containing the optical system and its parameters.
+    mplc_system: MPLCSystem
+        An instance of the MPLCSystem class, containing the MPLC layer and its parameters.
     wavelengths : np.ndarray
         Array of wavelengths (metres) to simulate, shape (n_wavelengths,).
     wavelength_weights : np.ndarray | None
@@ -29,12 +29,12 @@ class MPLCOptimizer():
 
     def __init__(
         self,
-        mplc: MPLC,
+        mplc_system: MPLCSystem,
         wavelengths: np.ndarray,
         wavelength_weights: np.ndarray | None = None,
         mode_weights: np.ndarray | None = None,
     ):
-        self.mplc = mplc
+        self.mplc_system = mplc_system
         self.wavelengths = wavelengths
         self.wavelength_weights = (
             wavelength_weights
@@ -42,7 +42,7 @@ class MPLCOptimizer():
             else np.ones(len(wavelengths)) / len(wavelengths)
         )
 
-        self.num_modes = self.mplc.input_modes.shape[0]
+        self.num_modes = self.mplc_system.input_modes.shape[0]
         self.mode_weights = (
             mode_weights
             if mode_weights is not None
@@ -53,29 +53,29 @@ class MPLCOptimizer():
     # Forward passes
     # ------------------------------------------------------------------
 
-    def get_spectral_field(self, phase_screens: np.ndarray) -> np.ndarray:
+    def get_spectral_field(self) -> np.ndarray:
         """
         Propagate all wavelengths and return the stack of output complex field
         arrays, shape (n_modes, n_wavelengths, wf_npixels, wf_npixels).
         """
-        output = self.mplc(phase_screens)
+        output = self.mplc_system()
         return output
 
-    def get_spectral_intensity(self, phase_screens: np.ndarray) -> np.ndarray:
+    def get_spectral_intensity(self) -> np.ndarray:
         """
         Propagate all wavelengths and return the stack of output intensity
         arrays, shape (n_modes, n_wavelengths, wf_npixels, wf_npixels).
         """
-        output_field = self.get_spectral_field(phase_screens)
+        output_field = self.get_spectral_field()
         intensity = np.abs(output_field) ** 2
         return intensity
 
-    def get_broadband_intensity(self, phase_screens: np.ndarray) -> np.ndarray:
+    def get_broadband_intensity(self) -> np.ndarray:
         """
         Propagate all wavelengths and return the spectrally weighted
         intensity sum, shape (n_modes, wf_npixels, wf_npixels).
         """
-        intensity = self.get_spectral_intensity(phase_screens)
+        intensity = self.get_spectral_intensity()
         broadband_intensity = np.tensordot(self.wavelength_weights, intensity, axes=1)
         return broadband_intensity
 
@@ -153,7 +153,7 @@ class MPLCOptimizer():
         ----------
         params : list[str]
             zodiax path strings identifying which leaves to differentiate,
-            e.g. ["optics_mplc.phase_screen_0.phase", ...].
+            e.g. ["mplc.phase_screens", "mplc.total_length"].
         loss_fn : str
             Which loss to differentiate: "overlap", "intensity", "crosstalk",
             or "combined".
@@ -278,7 +278,7 @@ class MPLCOptimizer():
     def get_phase_screens(self) -> list[np.ndarray]:
         """
         Extract and return a list of the current phase screen arrays from
-        ``optics_mplc``, one per plane.
+        ``mplc_system.mplc.phase_screens``, one per plane.
         """
         ...
 
