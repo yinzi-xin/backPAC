@@ -19,7 +19,8 @@ class InputField(dl.OpticalLayer):
 class MPLC(dl.OpticalLayer):
     """
     A dLux OpticalLayer representing a multi-plane light conversion (MPLC) system:
-    a sequence of complex-valued phase screens separated by free-space propagation.
+    a sequence of (zero thickness) complex-valued phase screens separated by
+    free-space propagation.
 
     Parameters
     ----------
@@ -33,25 +34,22 @@ class MPLC(dl.OpticalLayer):
         Diameter of the array of the simulation.
     wf_npixels : int
         Number of pixels representing the wavefront at each phase screen.
-    target_coordspec_n : int
-    target_coordspec_d : float
+    target_coordspec: dl.CoordSpec
     """
     phase_screens: np.ndarray
     total_length: float
-    num_planes: int = eqx.field(static=True)
-    array_diameter: float
-    wf_npixels: int = eqx.field(static=True)
-    target_coordspec_n: int = eqx.field(static=True)
-    target_coordspec_d: float
+    num_planes: int
+    diameter: float
+    wf_npixels: int
+    target_coordspec: dl.CoordSpec
 
-    def __init__(self, phase_screens, total_length, num_planes, array_diameter, wf_npixels, target_coordspec_n, target_coordspec_d):
+    def __init__(self, phase_screens, total_length, num_planes, array_diameter, wf_npixels, target_coordspec):
         self.phase_screens = np.asarray(phase_screens, dtype=float)
         self.total_length = np.asarray(total_length, dtype=float)
         self.num_planes = num_planes
         self.array_diameter = array_diameter
         self.wf_npixels = wf_npixels
-        self.target_coordspec_n = target_coordspec_n
-        self.target_coordspec_d = target_coordspec_d
+        self.target_coordspec = target_coordspec
 
     def __call__(self, wavefront):
         between_planes = dl.MFTPropagator(
@@ -70,7 +68,7 @@ class MPLC(dl.OpticalLayer):
             [
                 ("FreeSpace", dl.ABCDFreeSpace(self.total_length / self.num_planes)),
             ],
-            dl.CoordSpec(n=self.target_coordspec_n, d=self.target_coordspec_d),
+            self.target_coordspec,
         )
 
         return output_propagator(wavefront)
