@@ -20,7 +20,8 @@ class InputField(dl.OpticalLayer):
 class MPLC(dl.OpticalLayer):
     """
     A dLux OpticalLayer representing a multi-plane light conversion (MPLC) system:
-    a sequence of complex-valued phase screens separated by free-space propagation.
+    a sequence of (zero thickness) complex-valued phase screens separated by
+    free-space propagation.
 
     Parameters
     ----------
@@ -33,25 +34,22 @@ class MPLC(dl.OpticalLayer):
     diameter : float
     wf_npixels : int
         Number of pixels representing the wavefront at each phase screen.
-    target_coordspec_n : int
-    target_coordspec_d : float
+    target_coordspec: dl.CoordSpec
     """
     phase_screens: np.ndarray
     total_length: float
     num_planes: int
     diameter: float
     wf_npixels: int
-    target_coordspec_n: int
-    target_coordspec_d: float
+    target_coordspec: dl.CoordSpec
 
-    def __init__(self, phase_screens, total_length, num_planes, diameter, wf_npixels, target_coordspec_n, target_coordspec_d):
+    def __init__(self, phase_screens, total_length, num_planes, diameter, wf_npixels, target_coordspec):
         self.phase_screens = np.asarray(phase_screens, dtype=float)
         self.total_length = np.asarray(total_length, dtype=float)
         self.num_planes = num_planes
         self.diameter = diameter
         self.wf_npixels = wf_npixels
-        self.target_coordspec_n = target_coordspec_n
-        self.target_coordspec_d = target_coordspec_d
+        self.target_coordspec = target_coordspec
 
     def __call__(self, wavefront):
         between_planes = dl.MFTPropagator(
@@ -70,7 +68,7 @@ class MPLC(dl.OpticalLayer):
             [
                 ("FreeSpace", dl.ABCDFreeSpace(self.total_length / self.num_planes)),
             ],
-            dl.CoordSpec(n=self.target_coordspec_n, d=self.target_coordspec_d),
+            self.target_coordspec,
         )
 
         return output_propagator(wavefront)
@@ -92,8 +90,8 @@ class MPLCSystem(zdx.Base):
         Number of phase screens in the MPLC system.
     total_length : float
         Total length of the MPLC system (distance from input to output).
-    target_coordspec_n : int
-    target_coordspec_d : float
+    target_coordspec : dl.CoordSpec
+        Coordinate specification for the target plane.
     wavelengths : np.ndarray
         Array of wavelengths to propagate through the MPLC system, shape (n_wavelengths,).
     """
@@ -104,7 +102,7 @@ class MPLCSystem(zdx.Base):
     wf_npixels: int
     mplc: MPLC
 
-    def __init__(self, input_modes, target_modes, diameter, num_planes, total_length, target_coordspec_n, target_coordspec_d, wavelengths):
+    def __init__(self, input_modes, target_modes, diameter, num_planes, total_length, target_coordspec, wavelengths):
         self.input_modes = input_modes
         self.target_modes = target_modes
         self.diameter = diameter
@@ -117,8 +115,7 @@ class MPLCSystem(zdx.Base):
             num_planes=num_planes,
             diameter=diameter,
             wf_npixels=self.wf_npixels,
-            target_coordspec_n=target_coordspec_n,
-            target_coordspec_d=target_coordspec_d,
+            target_coordspec=target_coordspec,
         )
 
     def __call__(self) -> np.ndarray:
@@ -128,7 +125,7 @@ class MPLCSystem(zdx.Base):
         Returns
         -------
         output_fields : np.ndarray
-            Array of shape (n_modes, n_wavelengths, target_coordspec_n, target_coordspec_n)
+            Array of shape (n_modes, n_wavelengths, target_coordspec.n, target_coordspec.n)
             containing the output complex fields for each mode and wavelength.
         """
 
