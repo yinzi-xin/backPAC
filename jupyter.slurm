@@ -5,7 +5,7 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=2
 #SBATCH --partition=interactive
-#SBATCH --time=2:00:00
+#SBATCH --time=8:00:00
 #SBATCH --gres=gpu
 #SBATCH --output=logs/%x_%j.out
 
