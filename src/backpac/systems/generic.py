@@ -29,8 +29,8 @@ class MPLCSystem(zdx.Base):
         Number of phase screens in the MPLC system.
     total_length : float
         Total length of the MPLC system (distance from input to output).
-    target_coordspec_n : int
-    target_coordspec_d : float
+    target_coordspec: dl.CoordSpec
+        Coordinate specification for the target plane.
     wavelengths : np.ndarray
         Array of wavelengths to propagate through the MPLC system, shape (n_wavelengths,).
     """
@@ -44,13 +44,14 @@ class MPLCSystem(zdx.Base):
     wf_npixels: int = eqx.field(static=True)
     mplc: MPLC
 
-    def __init__(self, input_modes, target_modes, aperture_diameter, mplc_diameter, array_diameter, bin_size, num_planes, total_length, target_coordspec_n, target_coordspec_d, wavelengths):
+    def __init__(self, input_modes, target_modes, aperture_diameter, mplc_diameter, array_diameter, bin_size, num_planes, total_length, target_coordspec, wavelengths):
         self.input_modes = input_modes
         self.target_modes = target_modes
         self.aperture_diameter = aperture_diameter
         self.mplc_diameter = mplc_diameter
         self.array_diameter = array_diameter
         self.bin_size = bin_size
+        self.target_coordspec = target_coordspec
         self.wavelengths = wavelengths
         self.wf_npixels = input_modes.shape[1]  # Assuming input_modes has shape (n_modes, wf_npixels, wf_npixels)
 
@@ -60,8 +61,7 @@ class MPLCSystem(zdx.Base):
             num_planes=num_planes,
             array_diameter=array_diameter,
             wf_npixels=self.wf_npixels,
-            target_coordspec_n=target_coordspec_n,
-            target_coordspec_d=target_coordspec_d,
+            target_coordspec=target_coordspec
         )
 
     def with_params(self, params: dict) -> "MPLCSystem":
@@ -95,7 +95,7 @@ class MPLCSystem(zdx.Base):
         Returns
         -------
         output_fields : np.ndarray
-            Array of shape (n_modes, n_wavelengths, target_coordspec_n, target_coordspec_n)
+            Array of shape (n_modes, n_wavelengths, target_coordspec.n, target_coordspec.d)
             containing the output complex fields for each mode and wavelength.
         """
 
