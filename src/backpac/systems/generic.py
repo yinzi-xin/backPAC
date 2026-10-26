@@ -17,7 +17,9 @@ class MPLCSystem(zdx.Base):
         Array of input complex field amplitudes, shape (n_modes, wf_npixels, wf_npixels).
     target_modes : np.ndarray
         Array of target complex field amplitudes, shape (n_modes, wf_npixels, wf_npixels).
-    diameter : float
+    aperture_diameter : float
+        Diameter of the input aperture.
+    mplc_diameter : float
         Diameter of the MPLC system.
     array_diameter : float
         Diameter of the array of the simulation.
@@ -34,17 +36,19 @@ class MPLCSystem(zdx.Base):
     """
     input_modes: np.ndarray
     target_modes: np.ndarray
-    diameter: float
+    aperture_diameter: float
+    mplc_diameter: float
     array_diameter: float
     bin_size: int = eqx.field(static=True)
     wavelengths: np.ndarray
     wf_npixels: int = eqx.field(static=True)
     mplc: MPLC
 
-    def __init__(self, input_modes, target_modes, diameter, array_diameter, bin_size, num_planes, total_length, target_coordspec_n, target_coordspec_d, wavelengths):
+    def __init__(self, input_modes, target_modes, aperture_diameter, mplc_diameter, array_diameter, bin_size, num_planes, total_length, target_coordspec_n, target_coordspec_d, wavelengths):
         self.input_modes = input_modes
         self.target_modes = target_modes
-        self.diameter = diameter
+        self.aperture_diameter = aperture_diameter
+        self.mplc_diameter = mplc_diameter
         self.array_diameter = array_diameter
         self.bin_size = bin_size
         self.wavelengths = wavelengths
@@ -80,7 +84,7 @@ class MPLCSystem(zdx.Base):
         phase_screens = params["phase_screens"]
         n = phase_screens.shape[-1]
         binned_phase_screens = bin_phase_screens(phase_screens, self.bin_size)
-        filtered_phase_screens = mask_to_beam_size(binned_phase_screens, npixels=n, diameter=self.diameter, array_diameter=self.array_diameter)
+        filtered_phase_screens = mask_to_beam_size(binned_phase_screens, npixels=n, diameter=self.mplc_diameter, array_diameter=self.array_diameter)
 
         return self.set("mplc.phase_screens", filtered_phase_screens).set("mplc.total_length", params["total_length"])
 
@@ -99,7 +103,7 @@ class MPLCSystem(zdx.Base):
             input_layer = InputField(field=mode, array_diameter=self.array_diameter)
 
             def propagate_wavelength(wavelength: np.ndarray) -> np.ndarray:
-                wavefront = dl.Wavefront(wavelength, self.wf_npixels, diameter=self.diameter)
+                wavefront = dl.Wavefront(wavelength, self.wf_npixels, diameter=self.array_diameter)
                 wavefront = input_layer(wavefront)
                 wavefront = self.mplc(wavefront)
                 return wavefront.phasor
