@@ -40,6 +40,7 @@ class MPLCSystem(zdx.Base):
     mplc_diameter: float
     array_diameter: float
     bin_size: int = eqx.field(static=True)
+    target_coordspec: dl.CoordSpec = eqx.field(static=True)
     wavelengths: np.ndarray
     wf_npixels: int = eqx.field(static=True)
     mplc: MPLC
@@ -131,38 +132,32 @@ def stack_systems(mplc_systems) -> MPLCSystem:
     """
     return jax.tree_util.tree_map(lambda *leaves: np.stack(leaves), *mplc_systems)
 
-def loss_WFM(batched_system: MPLCSystem):
+def loss_WFM(mplc_system: MPLCSystem):
     """
-    Wavefront matching loss: propagate every system's input modes through it
-    and measure how well the outputs overlap with the target modes, averaged
-    over all systems.
+    Wavefront matching loss: propagate a system's input modes through it and
+    measure how well the outputs overlap with the target modes.
 
     Parameters
     ----------
-    batched_system : MPLCSystem
-        A single `MPLCSystem` batched over systems (leading axis on every
-        leaf), as produced by `stack_systems`.
+    mplc_system : MPLCSystem
+        A single (unbatched) `MPLCSystem`.
 
     Returns
     -------
     loss : float
-        Mean over all systems of 1 minus the mean squared overlap (fidelity)
-        between the propagated output modes and their target modes, summed
-        over wavelengths and modes. A perfect match yields a loss of 0.
+        1 minus the mean squared overlap (fidelity) between the propagated
+        output modes and their target modes, summed over wavelengths and
+        modes. A perfect match yields a loss of 0.
     """
-    def per_system_loss(mplc_system):
-        #propagate every input mode through the MPLC system
-        res = mplc_system()
+    #propagate every input mode through the MPLC system
+    res = mplc_system()
 
-        #calculate the loss (summed over wavelengths and modes)
-        #expand the target modes to match the shape of res
-        target_modes_expanded = np.expand_dims(mplc_system.target_modes, axis=1)
+    #calculate the loss (summed over wavelengths and modes)
+    #expand the target modes to match the shape of res
+    target_modes_expanded = np.expand_dims(mplc_system.target_modes, axis=1)
 
-        #calculate the overlap integral between the output modes and the target modes
-        overlap = np.sum(np.conj(res) * target_modes_expanded, axis=(-2, -1))
+    #calculate the overlap integral between the output modes and the target modes
+    overlap = np.sum(np.conj(res) * target_modes_expanded, axis=(-2, -1))
 
-        #calculate the loss as 1 - the mean of the squared magnitude of the overlap
-        return 1 - np.mean(np.abs(overlap)**2)
-
-    losses = eqx.filter_vmap(per_system_loss)(batched_system)
-    return np.mean(losses)
+    #calculate the loss as 1 - the mean of the squared magnitude of the overlap
+    return 1 - np.mean(np.abs(overlap)**2)
