@@ -42,7 +42,7 @@ class MPLCSystem(zdx.Base):
     mplc_diameter: float
     array_diameter: float
     bin_size: int = eqx.field(static=True)
-    target_coordspec: dl.CoordSpec = eqx.field(static=True)
+    target_coordspec: dl.CoordSpec
     wavelengths: np.ndarray
     wf_npixels: int = eqx.field(static=True)
     mplc: MPLC

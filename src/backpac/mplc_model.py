@@ -41,7 +41,7 @@ class MPLC(dl.OpticalLayer):
     num_planes: int = eqx.field(static=True)
     array_diameter: float
     wf_npixels: int = eqx.field(static=True)
-    target_coordspec: dl.CoordSpec = eqx.field(static=True)
+    target_coordspec: dl.CoordSpec
 
     def __init__(self, phase_screens, total_length, num_planes, array_diameter, wf_npixels, target_coordspec):
         self.phase_screens = np.asarray(phase_screens, dtype=float)
