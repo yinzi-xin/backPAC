@@ -135,6 +135,35 @@ class MPLCSystem(zdx.Base):
         
         return nuisance_modes
 
+    def propagate_all_modes(self) -> np.ndarray:
+        """
+        Propagate all input modes and nuisance modes through the MPLC system.
+
+        Returns
+        -------
+        output_fields : np.ndarray
+            Array of shape (n_modes + n_nuisance_modes, n_wavelengths, target_coordspec.n, target_coordspec.d)
+            containing the output complex fields for each mode and wavelength.
+        """
+        if self.telescope_modes is not None:
+            nuisance_modes = self.calculate_nuisance_modes()
+            all_modes = np.concatenate([self.input_modes, nuisance_modes], axis=0)
+        else:
+            all_modes = self.input_modes
+
+        def propagate_mode(mode: np.ndarray) -> np.ndarray:
+            input_layer = InputField(field=mode, array_diameter=self.array_diameter)
+
+            def propagate_wavelength(wavelength: np.ndarray) -> np.ndarray:
+                wavefront = dl.Wavefront(wavelength, self.wf_npixels, diameter=self.array_diameter)
+                wavefront = input_layer(wavefront)
+                wavefront = self.mplc(wavefront)
+                return wavefront.phasor
+
+            return eqx.filter_vmap(propagate_wavelength)(self.wavelengths)
+
+        return eqx.filter_vmap(propagate_mode)(all_modes)
+
     def __call__(self) -> np.ndarray:
         """
         Propagate every input mode, at every wavelength, through the MPLC system.
