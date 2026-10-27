@@ -108,7 +108,6 @@ class MPLCSystem(zdx.Base):
             "total_length": self.mplc.total_length
         }
 
-    #doesn't work yet
     def calculate_nuisance_modes(self, n_nuisance = None) -> np.ndarray:
         """
         Calculate the nuisance modes of the MPLC system, which are the modes that
@@ -123,11 +122,13 @@ class MPLCSystem(zdx.Base):
         if self.telescope_modes is None:
             raise ValueError("Telescope modes must be provided to calculate nuisance modes.")
 
-        # Calculate the projection of telescope modes onto input modes
-        overlap = np.sum(np.conj(self.input_modes) * self.telescope_modes, axis=(-2, -1))
-        
-        # Calculate the residual modes (nuisance modes)
-        residual = self.telescope_modes - np.sum(overlap[..., None, None] * self.input_modes, axis=0)
+        # Calculate the projection of each telescope mode onto each input mode,
+        # keeping the telescope-mode axis (t) and input-mode axis (m) distinct
+        overlap = np.einsum('mij,tij->tm', np.conj(self.input_modes), self.telescope_modes)
+
+        # Calculate the residual modes (nuisance modes) by removing the span of the input modes
+        projection = np.einsum('tm,mij->tij', overlap, self.input_modes)
+        residual = self.telescope_modes - projection
 
         # Orthonormalize the residual modes using QR decomposition.
         flat_residual = residual.reshape(residual.shape[0], -1)
