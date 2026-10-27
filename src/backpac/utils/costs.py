@@ -1,15 +1,17 @@
 from backpac.systems.generic import MPLCSystem
 import jax.numpy as np
 
-def loss_WFM(mplc_system: MPLCSystem):
+def loss_WFM(res, target_modes):
     """
     Wavefront matching loss: propagate a system's input modes through it and
     measure how well the outputs overlap with the target modes.
 
     Parameters
     ----------
-    mplc_system : MPLCSystem
-        A single `MPLCSystem`.
+    res : np.ndarray
+        The output complex fields from the MPLC system, shape (n_modes, n_wavelengths, target_coordspec.n, target_coordspec.d).
+    target_modes : np.ndarray
+        The target modes, shape (n_target_modes, wf_npixels, wf_npixels).
 
     Returns
     -------
@@ -18,12 +20,10 @@ def loss_WFM(mplc_system: MPLCSystem):
         output modes and their target modes, summed over wavelengths and
         modes. A perfect match yields a loss of 0.
     """
-    #propagate every input mode through the MPLC system
-    res = mplc_system()
 
     #calculate the loss (summed over wavelengths and modes)
     #expand the target modes to match the shape of res
-    target_modes_expanded = np.expand_dims(mplc_system.target_modes, axis=1)
+    target_modes_expanded = np.expand_dims(target_modes, axis=1)
 
     #calculate the overlap integral between the output modes and the target modes
     overlap = np.sum(np.conj(res) * target_modes_expanded, axis=(-2, -1))
@@ -32,10 +32,8 @@ def loss_WFM(mplc_system: MPLCSystem):
     return 1 - np.mean(np.abs(overlap)**2)
 
 #from Andrea, for cleanliness of the output beam
-def loss_cleanliness(mplc_system: MPLCSystem):
-    res = mplc_system()
-    target = mplc_system.target_modes[:, None, ...]
-
+def loss_cleanliness(res, target_modes):
+    target = target_modes[:, None, ...]
     g = np.sum(np.conj(target) * res, axis=(-2, -1))
     residual = res - g[..., None, None] * target
     power_r = np.sum(np.abs(residual) ** 2, axis=(-2, -1))
@@ -46,22 +44,23 @@ def loss_cleanliness(mplc_system: MPLCSystem):
     return cleanliness
 
 #cross talk amongst the target modes
-def loss_crosstalk(mplc_system: MPLCSystem):
+def loss_crosstalk(res, target_modes):
     """
     Calculate the crosstalk loss for a given MPLC system.
 
     Parameters
     ----------
-    mplc_system : MPLCSystem
-        A single `MPLCSystem`.
+    res : np.ndarray
+        The output complex fields from the MPLC system, shape (n_modes, n_wavelengths, target_coordspec.n, target_coordspec.d).
+    target_modes : np.ndarray
+        The target modes, shape (n_target_modes, wf_npixels, wf_npixels).
 
     Returns
     -------
     loss : float
         The crosstalk
     """
-    res = mplc_system()
-    target = mplc_system.target_modes[:, None, ...]
+    target = target_modes[:, None, ...]
 
     # Calculate the crosstalk as the sum of the squared magnitudes of the overlaps
     # between the output modes and the target modes, excluding the diagonal.
@@ -69,22 +68,23 @@ def loss_crosstalk(mplc_system: MPLCSystem):
     return crosstalk
 
 #cross talk from nuisance modes to target modes
-def loss_nuisance_crosstalk(mplc_system: MPLCSystem):
+def loss_nuisance_crosstalk(res_nuisance, target_modes):
     """
     Calculate the crosstalk loss from nuisance modes to target modes for a given MPLC system.
 
     Parameters
     ----------
-    mplc_system : MPLCSystem
-        A single `MPLCSystem`.
+    res_nuisance : np.ndarray
+        The output complex fields from the nuisance modes, shape (n_nuisance_modes, n_wavelengths, target_coordspec.n, target_coordspec.d).
+    target_modes : np.ndarray
+        The target modes, shape (n_target_modes, wf_npixels, wf_npixels).
 
     Returns
     -------
     loss : float
         The crosstalk from nuisance modes to target modes.
     """
-    res_nuisance = mplc_system.propagate_nuisance_modes()
-    target = mplc_system.target_modes[:, None, ...]
+    target = target_modes[:, None, ...]
 
     # Calculate the crosstalk as the sum of the squared magnitudes of the overlaps
     # between the output nuisance modes and the target modes.
