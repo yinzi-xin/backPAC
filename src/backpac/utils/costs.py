@@ -43,7 +43,6 @@ def loss_cleanliness(res, target_modes):
     cleanliness = np.mean(np.log10(c + 1e-12))
     return cleanliness
 
-#cross talk amongst the target modes
 def loss_crosstalk(res, target_modes):
     """
     Calculate the crosstalk loss for a given MPLC system.
@@ -67,8 +66,7 @@ def loss_crosstalk(res, target_modes):
     crosstalk = np.sum(np.abs(np.sum(np.conj(res) * target, axis=(-2, -1))) ** 2) - np.sum(np.abs(np.sum(np.conj(target) * target, axis=(-2, -1))) ** 2)
     return crosstalk
 
-#cross talk from nuisance modes to target modes
-def loss_nuisance_crosstalk(res_nuisance, target_modes):
+def loss_nuisance_crosstalk(res, res_nuisance, target_modes):
     """
     Calculate the crosstalk loss from nuisance modes to target modes for a given MPLC system.
 
@@ -82,11 +80,15 @@ def loss_nuisance_crosstalk(res_nuisance, target_modes):
     Returns
     -------
     loss : float
-        The crosstalk from nuisance modes to target modes.
+        The crosstalk from nuisance modes to target modes, normalized by the power in the target modes.
     """
     target = target_modes[:, None, ...]
 
     # Calculate the crosstalk as the sum of the squared magnitudes of the overlaps
     # between the output nuisance modes and the target modes.
     crosstalk = np.sum(np.abs(np.sum(np.conj(res_nuisance) * target, axis=(-2, -1))) ** 2)
-    return crosstalk
+
+    g = np.sum(np.conj(target) * res, axis=(-2, -1))
+    power_g = np.abs(g) ** 2
+
+    return np.squeeze(np.mean(np.log10(crosstalk/power_g + 1e-12)))
