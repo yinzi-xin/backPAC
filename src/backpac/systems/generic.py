@@ -34,7 +34,7 @@ class MPLCSystem(zdx.Base):
     wavelengths : np.ndarray
         Array of wavelengths to propagate through the MPLC system, shape (n_wavelengths,).
     telescope_modes : np.ndarray, optional
-        Array of telescope eigenmodes, shape (n_telescope_modes, wf_npixels, wf_npixels).
+        Array of telescope modes, shape (n_telescope_modes, wf_npixels, wf_npixels).
     """
     input_modes: np.ndarray
     target_modes: np.ndarray
@@ -108,7 +108,7 @@ class MPLCSystem(zdx.Base):
             "total_length": self.mplc.total_length
         }
 
-    def calculate_nuisance_modes(self) -> np.ndarray:
+    def calculate_nuisance_modes(self, n_out = None) -> np.ndarray:
         """
         Calculate the nuisance modes of the MPLC system, which are the modes that
         are orthogonal to the target modes and can be used to assess the
@@ -122,16 +122,21 @@ class MPLCSystem(zdx.Base):
         if self.telescope_modes is None:
             raise ValueError("Telescope modes must be provided to calculate nuisance modes.")
 
-        # Calculate the projection of telescope modes onto target modes
-        target_modes_expanded = np.expand_dims(self.target_modes, axis=1)
-        overlap = np.sum(np.conj(target_modes_expanded) * self.telescope_modes, axis=(-2, -1))
+        # Calculate the projection of telescope modes onto input modes
+        overlap = np.sum(np.conj(self.input_modes) * self.telescope_modes, axis=(-2, -1))
         
         # Calculate the residual modes (nuisance modes)
-        residual = self.telescope_modes - np.sum(overlap[..., None, None] * target_modes_expanded, axis=0)
+        residual = self.telescope_modes - np.sum(overlap[..., None, None] * self.input_modes, axis=0)
 
-        # Orthonormalize the residual modes using QR decomposition
-        q, r = np.linalg.qr(residual.reshape(residual.shape[0], -1))
-        nuisance_modes = q.reshape(residual.shape)
+        # Orthonormalize the residual modes using QR decomposition.
+        flat_residual = residual.reshape(residual.shape[0], -1)
+        q, r = np.linalg.qr(flat_residual.T)
+
+        nuisance_modes = q.T.reshape(residual.shape[0], self.wf_npixels, self.wf_npixels)
+
+        # If n_out is specified, return only the first n_out nuisance modes
+        if n_out is not None:
+            nuisance_modes = nuisance_modes[:n_out]
         
         return nuisance_modes
 
