@@ -4,8 +4,8 @@
 #SBATCH --mem=32G
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=2
-#SBATCH --partition=interactive
-#SBATCH --time=8:00:00
+#SBATCH --partition=gpu-short
+#SBATCH --time=4:00:00
 #SBATCH --gres=gpu
 #SBATCH --output=logs/%x_%j.out
 
