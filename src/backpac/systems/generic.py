@@ -128,8 +128,12 @@ class MPLCSystem(zdx.Base):
         
         # Calculate the residual modes (nuisance modes)
         residual = self.telescope_modes - np.sum(overlap[..., None, None] * target_modes_expanded, axis=0)
+
+        # Orthonormalize the residual modes using QR decomposition
+        q, r = np.linalg.qr(residual.reshape(residual.shape[0], -1))
+        nuisance_modes = q.reshape(residual.shape)
         
-        return residual
+        return nuisance_modes
 
     def __call__(self) -> np.ndarray:
         """
