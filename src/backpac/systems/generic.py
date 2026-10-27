@@ -108,7 +108,8 @@ class MPLCSystem(zdx.Base):
             "total_length": self.mplc.total_length
         }
 
-    def calculate_nuisance_modes(self, n_out = None) -> np.ndarray:
+    #doesn't work yet
+    def calculate_nuisance_modes(self, n_nuisance = None) -> np.ndarray:
         """
         Calculate the nuisance modes of the MPLC system, which are the modes that
         are orthogonal to the target modes and can be used to assess the
@@ -134,9 +135,9 @@ class MPLCSystem(zdx.Base):
 
         nuisance_modes = q.T.reshape(residual.shape[0], self.wf_npixels, self.wf_npixels)
 
-        # If n_out is specified, return only the first n_out nuisance modes
-        if n_out is not None:
-            nuisance_modes = nuisance_modes[:n_out]
+        # If n_nuisance is specified, return only the first n_nuisance nuisance modes
+        if n_nuisance is not None:
+            nuisance_modes = nuisance_modes[:n_nuisance]
         
         return nuisance_modes
 
@@ -169,7 +170,7 @@ class MPLCSystem(zdx.Base):
 
         return eqx.filter_vmap(propagate_mode)(all_modes)
 
-    def propagate_nuisance_modes(self) -> np.ndarray:
+    def propagate_nuisance_modes(self, n_nuisance = None) -> np.ndarray:
         """
         Propagate only the nuisance modes through the MPLC system.
 
@@ -182,7 +183,7 @@ class MPLCSystem(zdx.Base):
         if self.telescope_modes is None:
             raise ValueError("Telescope modes must be provided to calculate nuisance modes.")
 
-        nuisance_modes = self.calculate_nuisance_modes()
+        nuisance_modes = self.calculate_nuisance_modes(n_nuisance)
 
         def propagate_mode(mode: np.ndarray) -> np.ndarray:
             input_layer = InputField(field=mode, array_diameter=self.array_diameter)
