@@ -9,7 +9,7 @@ def loss_WFM(mplc_system: MPLCSystem):
     Parameters
     ----------
     mplc_system : MPLCSystem
-        A single (unbatched) `MPLCSystem`.
+        A single `MPLCSystem`.
 
     Returns
     -------
@@ -45,6 +45,48 @@ def loss_cleanliness(mplc_system: MPLCSystem):
     cleanliness = np.mean(np.log10(c + 1e-12))
     return cleanliness
 
-#cross talk, for
+#cross talk amongst the target modes
 def loss_crosstalk(mplc_system: MPLCSystem):
-    return NotImplementedError("Crosstalk loss is not yet implemented. Please use loss_WFM or loss_cleanliness instead.")
+    """
+    Calculate the crosstalk loss for a given MPLC system.
+
+    Parameters
+    ----------
+    mplc_system : MPLCSystem
+        A single `MPLCSystem`.
+
+    Returns
+    -------
+    loss : float
+        The crosstalk
+    """
+    res = mplc_system()
+    target = mplc_system.target_modes[:, None, ...]
+
+    # Calculate the crosstalk as the sum of the squared magnitudes of the overlaps
+    # between the output modes and the target modes, excluding the diagonal.
+    crosstalk = np.sum(np.abs(np.sum(np.conj(res) * target, axis=(-2, -1))) ** 2) - np.sum(np.abs(np.sum(np.conj(target) * target, axis=(-2, -1))) ** 2)
+    return crosstalk
+
+#cross talk from nuisance modes to target modes
+def loss_nuisance_crosstalk(mplc_system: MPLCSystem):
+    """
+    Calculate the crosstalk loss from nuisance modes to target modes for a given MPLC system.
+
+    Parameters
+    ----------
+    mplc_system : MPLCSystem
+        A single `MPLCSystem`.
+
+    Returns
+    -------
+    loss : float
+        The crosstalk from nuisance modes to target modes.
+    """
+    res_nuisance = mplc_system.propagate_nuisance_modes()
+    target = mplc_system.target_modes[:, None, ...]
+
+    # Calculate the crosstalk as the sum of the squared magnitudes of the overlaps
+    # between the output nuisance modes and the target modes.
+    crosstalk = np.sum(np.abs(np.sum(np.conj(res_nuisance) * target, axis=(-2, -1))) ** 2)
+    return crosstalk
