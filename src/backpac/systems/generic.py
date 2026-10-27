@@ -171,20 +171,16 @@ class MPLCSystem(zdx.Base):
 
         return eqx.filter_vmap(propagate_mode)(all_modes)
 
-    def propagate_nuisance_modes(self, n_nuisance = None) -> np.ndarray:
+    def propagate_modes(self, modes) -> np.ndarray:
         """
-        Propagate only the nuisance modes through the MPLC system.
+        Propagate the defined modes through the MPLC system.
 
         Returns
         -------
         output_fields : np.ndarray
-            Array of shape (n_nuisance_modes, n_wavelengths, target_coordspec.n, target_coordspec.d)
-            containing the output complex fields for each nuisance mode and wavelength.
+            Array of shape (n_modes, n_wavelengths, target_coordspec.n, target_coordspec.d)
+            containing the output complex fields for each mode and wavelength.
         """
-        if self.telescope_modes is None:
-            raise ValueError("Telescope modes must be provided to calculate nuisance modes.")
-
-        nuisance_modes = self.calculate_nuisance_modes(n_nuisance)
 
         def propagate_mode(mode: np.ndarray) -> np.ndarray:
             input_layer = InputField(field=mode, array_diameter=self.array_diameter)
@@ -197,7 +193,7 @@ class MPLCSystem(zdx.Base):
 
             return eqx.filter_vmap(propagate_wavelength)(self.wavelengths)
 
-        return eqx.filter_vmap(propagate_mode)(nuisance_modes)
+        return eqx.filter_vmap(propagate_mode)(modes)
 
     def __call__(self) -> np.ndarray:
         """
