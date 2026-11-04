@@ -34,22 +34,26 @@ class MPLC(dl.OpticalLayer):
         Diameter of the array of the simulation.
     wf_npixels : int
         Number of pixels representing the wavefront at each phase screen.
-    target_coordspec: dl.CoordSpec
+    target_coordspec_n : int
+
+    target_coordspec_d
     """
     phase_screens: np.ndarray
     total_length: float
     num_planes: int = eqx.field(static=True)
     array_diameter: float
     wf_npixels: int = eqx.field(static=True)
-    target_coordspec: dl.CoordSpec
+    target_coordspec_n : int
+    target_coordspec_d : float
 
-    def __init__(self, phase_screens, total_length, num_planes, array_diameter, wf_npixels, target_coordspec):
+    def __init__(self, phase_screens, total_length, num_planes, array_diameter, wf_npixels, target_coordspec_n, target_coordspec_d):
         self.phase_screens = np.asarray(phase_screens, dtype=float)
         self.total_length = np.asarray(total_length, dtype=float)
         self.num_planes = num_planes
         self.array_diameter = array_diameter
         self.wf_npixels = wf_npixels
-        self.target_coordspec = target_coordspec
+        self.target_coordspec_n = target_coordspec_n
+        self.target_coordspec_d = target_coordspec_d
 
     def __call__(self, wavefront):
         between_planes = dl.MFTPropagator(
@@ -68,7 +72,7 @@ class MPLC(dl.OpticalLayer):
             [
                 ("FreeSpace", dl.ABCDFreeSpace(self.total_length / self.num_planes)),
             ],
-            self.target_coordspec,
+            dl.CoordSpec(n=self.target_coordspec_n, d=self.target_coordspec_d),
         )
 
         return output_propagator(wavefront)

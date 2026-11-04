@@ -29,8 +29,8 @@ class MPLCSystem(zdx.Base):
         Number of phase screens in the MPLC system.
     total_length : float
         Total length of the MPLC system (distance from input to output).
-    target_coordspec: dl.CoordSpec
-        Coordinate specification for the target plane.
+    target_coordspec_n : int
+    target_coordspec_d : float
     wavelengths : np.ndarray
         Array of wavelengths to propagate through the MPLC system, shape (n_wavelengths,).
     telescope_modes : np.ndarray, optional
@@ -42,20 +42,22 @@ class MPLCSystem(zdx.Base):
     mplc_diameter: float
     array_diameter: float
     bin_size: int = eqx.field(static=True)
-    target_coordspec: dl.CoordSpec
+    target_coordspec_n: int
+    target_coordspec_d: float
     wavelengths: np.ndarray
     wf_npixels: int = eqx.field(static=True)
     mplc: MPLC
     telescope_modes: np.ndarray
 
-    def __init__(self, input_modes, target_modes, aperture_diameter, mplc_diameter, array_diameter, bin_size, num_planes, total_length, target_coordspec, wavelengths, telescope_modes=None):
+    def __init__(self, input_modes, target_modes, aperture_diameter, mplc_diameter, array_diameter, bin_size, num_planes, total_length, target_coordspec_n, target_coordspec_d, wavelengths, telescope_modes=None):
         self.input_modes = input_modes
         self.target_modes = target_modes
         self.aperture_diameter = aperture_diameter
         self.mplc_diameter = mplc_diameter
         self.array_diameter = array_diameter
         self.bin_size = bin_size
-        self.target_coordspec = target_coordspec
+        self.target_coordspec_n = target_coordspec_n
+        self.target_coordspec_d = target_coordspec_d
         self.wavelengths = wavelengths
         self.wf_npixels = input_modes.shape[1]  # Assuming input_modes has shape (n_modes, wf_npixels, wf_npixels)
         self.telescope_modes = telescope_modes
@@ -66,7 +68,8 @@ class MPLCSystem(zdx.Base):
             num_planes=num_planes,
             array_diameter=array_diameter,
             wf_npixels=self.wf_npixels,
-            target_coordspec=target_coordspec
+            target_coordspec_n = self.target_coordspec_n,
+            target_coordspec_d = self.target_coordspec_d,
         )
 
     def with_params(self, params: dict) -> "MPLCSystem":
@@ -149,7 +152,7 @@ class MPLCSystem(zdx.Base):
         Returns
         -------
         output_fields : np.ndarray
-            Array of shape (n_modes + n_nuisance_modes, n_wavelengths, target_coordspec.n, target_coordspec.d)
+            Array of shape (n_modes + n_nuisance_modes, n_wavelengths, target_coordspec_n, target_coordspec_n)
             containing the output complex fields for each mode and wavelength.
         """
         if self.telescope_modes is not None:
@@ -178,7 +181,7 @@ class MPLCSystem(zdx.Base):
         Returns
         -------
         output_fields : np.ndarray
-            Array of shape (n_modes, n_wavelengths, target_coordspec.n, target_coordspec.d)
+            Array of shape (n_modes, n_wavelengths, target_coordspec_n, target_coordspec_n)
             containing the output complex fields for each mode and wavelength.
         """
 
@@ -202,7 +205,7 @@ class MPLCSystem(zdx.Base):
         Returns
         -------
         output_fields : np.ndarray
-            Array of shape (n_modes, n_wavelengths, target_coordspec.n, target_coordspec.d)
+            Array of shape (n_modes, n_wavelengths, target_coordspec_n, target_coordspec_n)
             containing the output complex fields for each mode and wavelength.
         """
 
