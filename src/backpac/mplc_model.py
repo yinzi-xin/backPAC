@@ -35,8 +35,9 @@ class MPLC(dl.OpticalLayer):
     wf_npixels : int
         Number of pixels representing the wavefront at each phase screen.
     target_coordspec_n : int
-
-    target_coordspec_d
+        Number of pixels across the target plane.
+    target_coordspec_d : float
+        Physical size of the target plane pixels in metres.
     """
     phase_screens: np.ndarray
     total_length: float
@@ -52,7 +53,8 @@ class MPLC(dl.OpticalLayer):
         self.num_planes = num_planes
         self.array_diameter = array_diameter
         self.wf_npixels = wf_npixels
-        self.target_coordspec = target_coordspec
+        self.target_coordspec_n = target_coordspec_n
+        self.target_coordspec_d = target_coordspec_d
 
     def __call__(self, wavefront):
         between_planes = dl.MFTPropagator(
@@ -71,7 +73,7 @@ class MPLC(dl.OpticalLayer):
             [
                 ("FreeSpace", dl.ABCDFreeSpace(self.total_length / self.num_planes)),
             ],
-            self.target_coordspec,
+            dl.CoordSpec(n=self.target_coordspec_n, d=self.target_coordspec_d),
         )
 
         return output_propagator(wavefront)

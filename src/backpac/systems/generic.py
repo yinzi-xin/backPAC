@@ -221,23 +221,3 @@ class MPLCSystem(zdx.Base):
             return eqx.filter_vmap(propagate_wavelength)(self.wavelengths)
 
         return eqx.filter_vmap(propagate_mode)(self.input_modes)
-
-#This currently doesn't work when dl.CoordSpec is passed in
-def stack_systems(mplc_systems) -> MPLCSystem:
-    """
-    Combine same-structure `MPLCSystem`s into a single batched `MPLCSystem`
-    pytree with a leading system axis on every leaf, suitable for `eqx.filter_vmap`.
-
-    Parameters
-    ----------
-    mplc_systems : Sequence[MPLCSystem]
-        MPLC systems to stack. Must all share the same pytree structure
-        (e.g. same array shapes, num_planes, etc.).
-
-    Returns
-    -------
-    MPLCSystem
-        A single `MPLCSystem` whose leaves are the stacked leaves of the
-        inputs, with shape `(n_systems, ...)`.
-    """
-    return jax.tree_util.tree_map(lambda *leaves: np.stack(leaves), *mplc_systems)
