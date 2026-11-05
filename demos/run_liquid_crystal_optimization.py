@@ -1,9 +1,3 @@
-"""Batch script version of demos/liquid_crystal_modal_coronagraph.ipynb, with plotting removed.
-
-Run from the workspace root, e.g.:
-    python demos/run_liquid_crystal_optimization.py
-"""
-
 import argparse
 
 import equinox as eqx
@@ -15,6 +9,7 @@ import dLux as dl
 import dLux.utils as dlu
 from tqdm import tqdm
 from scipy.ndimage import zoom
+import matplotlib.pyplot as plt
 
 from backpac.systems.generic import MPLCSystem
 from backpac.utils.costs import loss_WFM, loss_nuisance_crosstalk
@@ -216,6 +211,10 @@ def main(sigma_pix, sigma_length, crosstalk_weight):
     print(crosstalk_current)
 
     np.save(f'demos/results/30cm/temporary_before_crosstalk_{run_tag}.npy', params['phase_screens'])
+    plt.figure()
+    plt.plot(losses)
+    plt.title("Loss vs Iteration (Before Crosstalk Term)")
+    plt.savefig(f'demos/results/30cm/plots/loss_before_crosstalk_{run_tag}.pdf')
 
     # Run the optimisation loop with a crosstalk term
     losses = []
@@ -235,6 +234,10 @@ def main(sigma_pix, sigma_length, crosstalk_weight):
     filtered_phase_screens_final = mplc_system_final.mplc.phase_screens
 
     np.save(f'demos/results/30cm/phase_screens_{run_tag}.npy', filtered_phase_screens_final)
+    plt.figure()
+    plt.plot(losses)
+    plt.title("Loss vs Iteration (After Crosstalk Term)")
+    plt.savefig(f'demos/results/30cm/plots/loss_after_crosstalk_{run_tag}.pdf')
 
     # propagate the input mode through the final phase screens and the final total length
     res_final = mplc_system_final()
