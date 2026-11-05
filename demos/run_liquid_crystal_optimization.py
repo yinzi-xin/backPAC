@@ -28,8 +28,8 @@ def _fmt(value):
 
 def parse_args():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--sigma_pix", type=float, default=0.0, help="Standard deviation of random misalignment in pixels")
-    parser.add_argument("--sigma_length", type=float, default=0.0, help="Standard deviation of random total length perturbation in meters")
+    parser.add_argument("--sigma_pix", type=float, default=2.0, help="Standard deviation of random misalignment in pixels")
+    parser.add_argument("--sigma_length", type=float, default=5e-3, help="Standard deviation of random total length perturbation in meters")
     parser.add_argument("--crosstalk_weight", type=float, default=0.1, help="Weight of the crosstalk term in the combined loss")
     return parser.parse_args()
 
