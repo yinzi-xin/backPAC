@@ -213,6 +213,8 @@ def main(sigma_pix, sigma_length, crosstalk_weight):
     crosstalk_current = loss_nuisance_crosstalk(mplc_system()[None], mplc_system.propagate_modes(nuisance_modes)[None], mplc_system.target_modes)
     print(crosstalk_current)
 
+    from pathlib import Path
+    Path('demos/results/30cm/plots').mkdir(parents=True, exist_ok=True)
     np.save(f'demos/results/30cm/temporary_before_crosstalk_{run_tag}.npy', params['phase_screens'])
     plt.figure()
     plt.plot(losses)
