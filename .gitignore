@@ -4,3 +4,5 @@
 **.npy
 dist/
 .vscode/
+logs/
+config.py

@@ -1,19 +1,18 @@
 import jax.numpy as np
-import equinox as eqx
-import zodiax as zdx
 import dLux as dl
+import equinox as eqx
 
 class InputField(dl.OpticalLayer):
     field: np.ndarray
-    diameter: float
+    array_diameter: float
 
-    def __init__(self, field, diameter):
+    def __init__(self, field, array_diameter):
         self.field = field
-        self.diameter = diameter
+        self.array_diameter = array_diameter
 
     def __call__(self, wavefront):
         wavelength = wavefront.wavelength
-        wavefront = wavefront.from_phasor(self.field, wavelength, diameter=self.diameter)
+        wavefront = wavefront.from_phasor(self.field, wavelength, diameter=self.array_diameter)
         wavefront = wavefront.normalise()
         return wavefront
 
@@ -31,32 +30,38 @@ class MPLC(dl.OpticalLayer):
         Total length of the MPLC system (distance from input to output).
     num_planes : int
         Number of phase screens in the MPLC system.
-    diameter : float
+    array_diameter : float
+        Diameter of the array of the simulation.
     wf_npixels : int
         Number of pixels representing the wavefront at each phase screen.
-    target_coordspec: dl.CoordSpec
+    target_coordspec_n : int
+        Number of pixels across the target plane.
+    target_coordspec_d : float
+        Physical size of the target plane pixels in metres.
     """
     phase_screens: np.ndarray
     total_length: float
-    num_planes: int
-    diameter: float
-    wf_npixels: int
-    target_coordspec: dl.CoordSpec
+    num_planes: int = eqx.field(static=True)
+    array_diameter: float
+    wf_npixels: int = eqx.field(static=True)
+    target_coordspec_n : int
+    target_coordspec_d : float
 
-    def __init__(self, phase_screens, total_length, num_planes, diameter, wf_npixels, target_coordspec):
+    def __init__(self, phase_screens, total_length, num_planes, array_diameter, wf_npixels, target_coordspec_n, target_coordspec_d):
         self.phase_screens = np.asarray(phase_screens, dtype=float)
         self.total_length = np.asarray(total_length, dtype=float)
         self.num_planes = num_planes
-        self.diameter = diameter
+        self.array_diameter = array_diameter
         self.wf_npixels = wf_npixels
-        self.target_coordspec = target_coordspec
+        self.target_coordspec_n = target_coordspec_n
+        self.target_coordspec_d = target_coordspec_d
 
     def __call__(self, wavefront):
         between_planes = dl.MFTPropagator(
             [
                 ("FreeSpace", dl.ABCDFreeSpace(self.total_length / self.num_planes)),
             ],
-            dl.CoordSpec(n=self.wf_npixels, d=self.diameter / self.wf_npixels),
+            dl.CoordSpec(n=self.wf_npixels, d=self.array_diameter / self.wf_npixels),
         )
 
         for i in range(self.num_planes):
@@ -68,76 +73,7 @@ class MPLC(dl.OpticalLayer):
             [
                 ("FreeSpace", dl.ABCDFreeSpace(self.total_length / self.num_planes)),
             ],
-            self.target_coordspec,
+            dl.CoordSpec(n=self.target_coordspec_n, d=self.target_coordspec_d),
         )
 
         return output_propagator(wavefront)
-
-
-class MPLCSystem(zdx.Base):
-    """
-    Wraps an `MPLC` layer with the input/target modes and wavelengths needed to
-    propagate a full set of modes through the MPLC system.
-
-    Parameters
-    ----------
-    input_modes : np.ndarray
-        Array of input complex field amplitudes, shape (n_modes, wf_npixels, wf_npixels).
-    target_modes : np.ndarray
-        Array of target complex field amplitudes, shape (n_modes, wf_npixels, wf_npixels).
-    diameter : float
-    num_planes : int
-        Number of phase screens in the MPLC system.
-    total_length : float
-        Total length of the MPLC system (distance from input to output).
-    target_coordspec : dl.CoordSpec
-        Coordinate specification for the target plane.
-    wavelengths : np.ndarray
-        Array of wavelengths to propagate through the MPLC system, shape (n_wavelengths,).
-    """
-    input_modes: np.ndarray
-    target_modes: np.ndarray
-    diameter: float
-    wavelengths: np.ndarray
-    wf_npixels: int
-    mplc: MPLC
-
-    def __init__(self, input_modes, target_modes, diameter, num_planes, total_length, target_coordspec, wavelengths):
-        self.input_modes = input_modes
-        self.target_modes = target_modes
-        self.diameter = diameter
-        self.wavelengths = wavelengths
-        self.wf_npixels = input_modes.shape[1]  # Assuming input_modes has shape (n_modes, wf_npixels, wf_npixels)
-
-        self.mplc = MPLC(
-            phase_screens=np.zeros((num_planes, self.wf_npixels, self.wf_npixels)),
-            total_length=total_length,
-            num_planes=num_planes,
-            diameter=diameter,
-            wf_npixels=self.wf_npixels,
-            target_coordspec=target_coordspec,
-        )
-
-    def __call__(self) -> np.ndarray:
-        """
-        Propagate every input mode, at every wavelength, through the MPLC system.
-
-        Returns
-        -------
-        output_fields : np.ndarray
-            Array of shape (n_modes, n_wavelengths, target_coordspec.n, target_coordspec.n)
-            containing the output complex fields for each mode and wavelength.
-        """
-
-        def propagate_mode(mode: np.ndarray) -> np.ndarray:
-            input_layer = InputField(field=mode, diameter=self.diameter)
-
-            def propagate_wavelength(wavelength: np.ndarray) -> np.ndarray:
-                wavefront = dl.Wavefront(wavelength, self.wf_npixels, diameter=self.diameter)
-                wavefront = input_layer(wavefront)
-                wavefront = self.mplc(wavefront)
-                return wavefront.phasor
-
-            return eqx.filter_vmap(propagate_wavelength)(self.wavelengths)
-
-        return eqx.filter_vmap(propagate_mode)(self.input_modes)
