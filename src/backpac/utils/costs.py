@@ -102,4 +102,4 @@ def loss_nuisance_crosstalk(res, res_nuisance, target_modes):
     g = np.sum(np.conj(target) * res, axis=(-2, -1))
     power_g = np.abs(g) ** 2
 
-    return np.squeeze(np.mean(np.log10(crosstalk[:, None, None] / power_g + 1e-12)))
+    return np.squeeze(np.mean(np.log10(crosstalk[:, None, None] / (power_g + 1e-12) + 1e-12)))
