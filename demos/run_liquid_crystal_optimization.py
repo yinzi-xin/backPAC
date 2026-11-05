@@ -34,9 +34,12 @@ def _chunk_loss(params, mplc_system, nuisance_modes, chunk_keys, sigma_pix, sigm
         key_shift, key_temp = jax.random.split(sample_key)
         key_wavel, key_length = jax.random.split(key_temp)
         sample_params = dict(params)
-        sample_params['phase_screens'] = apply_random_shifts(params['phase_screens'], key_shift, sigma_pix)
         sample_params['total_length'] = params['total_length'] + sigma_length * jax.random.normal(key_length, shape=())
         sample_system = mplc_system.with_params(sample_params)
+        sample_system = sample_system.set(
+            "mplc.phase_screens",
+            apply_random_shifts(sample_system.mplc.phase_screens, key_shift, sigma_pix),
+        )
         random_wavelength = jax.random.uniform(key_wavel, minval=wavelength_min, maxval=wavelength_max)
         return sample_system.set("wavelengths", np.array([random_wavelength]))
 
