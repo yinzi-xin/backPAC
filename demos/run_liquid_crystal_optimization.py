@@ -150,7 +150,7 @@ def main(sigma_pix, sigma_length, crosstalk_weight):
     # Construct the optics object for generating the output modes
     optics_mode_gen = dl.LayeredOpticalSystem(
         wf_npixels=wf_npix,
-        diameter=aperture_diameter,
+        diameter=simulation_diameter,
         layers=layers_mode_gen,
     )
 
