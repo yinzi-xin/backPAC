@@ -4,6 +4,8 @@ Run from the workspace root, e.g.:
     python demos/run_liquid_crystal_optimization.py
 """
 
+import argparse
+
 import equinox as eqx
 import zodiax as zdx
 import optax
@@ -17,6 +19,19 @@ from scipy.ndimage import zoom
 from backpac.systems.generic import MPLCSystem
 from backpac.utils.costs import loss_WFM, loss_nuisance_crosstalk
 from backpac.utils.operations import apply_random_shifts
+
+
+def _fmt(value):
+    """Make a float filename-safe, e.g. 1e-3 -> '1em3', 2.0 -> '2p0'."""
+    return f"{value:g}".replace('.', 'p').replace('-', 'm')
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--sigma_pix", type=float, default=0.0, help="Standard deviation of random misalignment in pixels")
+    parser.add_argument("--sigma_length", type=float, default=0.0, help="Standard deviation of random total length perturbation in meters")
+    parser.add_argument("--crosstalk_weight", type=float, default=0.1, help="Weight of the crosstalk term in the combined loss")
+    return parser.parse_args()
 
 
 def _chunk_loss(params, mplc_system, nuisance_modes, chunk_keys, sigma_pix, sigma_length, wavelength_min, wavelength_max, crosstalk_weight):
@@ -73,7 +88,9 @@ def loss_fn_combined_crosstalk(params, mplc_system, nuisance_modes, key, n_batch
     return total_loss / n_micro_batches, mean_grad
 
 
-def main():
+def main(sigma_pix, sigma_length, crosstalk_weight):
+    run_tag = f"sigma_pix{_fmt(sigma_pix)}_sigma_length{_fmt(sigma_length)}_crosstalk{_fmt(crosstalk_weight)}"
+
     # Define MPLC parameters
     aperture_diameter = 9e-3  # Aperture diameter
     mplc_diameter = 12e-3  # MPLC diameter
@@ -101,9 +118,6 @@ def main():
 
     print(wf_npixels)
     print(simulation_pix_size)
-
-    # normalize input mode
-    input_mode = input_mode / np.sqrt(np.sum(np.abs(input_mode) ** 2))
 
     # interpolate input mode to match wf_npixels using zoom
     input_mode = zoom(input_mode, (wf_npixels / input_mode.shape[0], wf_npixels / input_mode.shape[1]), order=3)
@@ -181,18 +195,8 @@ def main():
 
     key = jax.random.PRNGKey(0)
 
-    sigma_pix = 0.0  # Standard deviation for random misalignment in pixels
-    sigma_length = 0  # Standard deviation for random total length perturbation in meters
     n_batch = 16  # Number of independent samples for Monte Carlo estimation
     micro_batch_size = 2  # Size of each micro-batch for gradient accumulation
-
-    # test the loss function
-    initial_loss, initial_grad = loss_fn_combined_crosstalk(params, mplc_system, None, key, n_batch=2, sigma_pix=sigma_pix, sigma_length=sigma_length, wavelength_min=wavelength_min, wavelength_max=wavelength_max)
-    print("Initial loss:", initial_loss)
-    print("Initial gradient norm:", optax.global_norm(initial_grad))
-
-    initial_crosstalk = loss_nuisance_crosstalk(mplc_system()[None], mplc_system.propagate_modes(nuisance_modes)[None], mplc_system.target_modes)
-    print("Initial crosstalk:", initial_crosstalk)
 
     # Run the optimisation loop without crosstalk term
     losses = []
@@ -211,11 +215,9 @@ def main():
     crosstalk_current = loss_nuisance_crosstalk(mplc_system()[None], mplc_system.propagate_modes(nuisance_modes)[None], mplc_system.target_modes)
     print(crosstalk_current)
 
-    np.save('demos/results/30cm/temporary_before_crosstalk_nojitters.npy', params['phase_screens'])
+    np.save(f'demos/results/30cm/temporary_before_crosstalk_{run_tag}.npy', params['phase_screens'])
 
     # Run the optimisation loop with a crosstalk term
-    crosstalk_weight = 0.1
-
     losses = []
     num_iters = 100
     with tqdm(range(num_iters), desc='Gradient Descent') as t:
@@ -232,7 +234,7 @@ def main():
     mplc_system_final = mplc_system.with_params(params)
     filtered_phase_screens_final = mplc_system_final.mplc.phase_screens
 
-    np.save('demos/results/30cm/phase_screens_bandwidth01random_crosstalk0p1.npy', filtered_phase_screens_final)
+    np.save(f'demos/results/30cm/phase_screens_{run_tag}.npy', filtered_phase_screens_final)
 
     # propagate the input mode through the final phase screens and the final total length
     res_final = mplc_system_final()
@@ -247,4 +249,5 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    args = parse_args()
+    main(args.sigma_pix, args.sigma_length, args.crosstalk_weight)
