@@ -37,37 +37,42 @@ class MPLCSystem(zdx.Base):
         Array of telescope modes, shape (n_telescope_modes, wf_npixels, wf_npixels).
     """
     input_modes: np.ndarray
+    wf_npixels: int = eqx.field(static=True)
     target_modes: np.ndarray
     aperture_diameter: float
     mplc_diameter: float
     array_diameter: float
     bin_size: int = eqx.field(static=True)
+    num_planes: int = eqx.field(static=True)
+    total_length: float = eqx.field(static=True)
     target_coordspec_n: int
     target_coordspec_d: float
     wavelengths: np.ndarray
-    wf_npixels: int = eqx.field(static=True)
     mplc: MPLC
     telescope_modes: np.ndarray
+    delta_zs: np.ndarray
 
     def __init__(self, input_modes, target_modes, aperture_diameter, mplc_diameter, array_diameter, bin_size, num_planes, total_length, target_coordspec_n, target_coordspec_d, wavelengths, telescope_modes=None):
         self.input_modes = input_modes
+        self.wf_npixels = input_modes.shape[1]  # Assuming input_modes has shape (n_modes, wf_npixels, wf_npixels)
         self.target_modes = target_modes
         self.aperture_diameter = aperture_diameter
         self.mplc_diameter = mplc_diameter
         self.array_diameter = array_diameter
         self.bin_size = bin_size
+        self.num_planes = num_planes
+        self.total_length = total_length
         self.target_coordspec_n = target_coordspec_n
         self.target_coordspec_d = target_coordspec_d
         self.wavelengths = wavelengths
-        self.wf_npixels = input_modes.shape[1]  # Assuming input_modes has shape (n_modes, wf_npixels, wf_npixels)
         self.telescope_modes = telescope_modes
 
+        self.delta_zs = np.linspace(0, self.total_length, self.num_planes + 1)[1:] - np.linspace(0, self.total_length, self.num_planes + 1)[:-1]
+
         self.mplc = MPLC(
-            phase_screens=np.zeros((num_planes, self.wf_npixels, self.wf_npixels)),
-            total_length=total_length,
-            num_planes=num_planes,
-            array_diameter=array_diameter,
-            wf_npixels=self.wf_npixels,
+            phase_screens=np.zeros((self.num_planes, self.wf_npixels, self.wf_npixels)),
+            delta_zs=self.delta_zs,
+            array_diameter=self.array_diameter,
             target_coordspec_n = self.target_coordspec_n,
             target_coordspec_d = self.target_coordspec_d,
         )
@@ -81,7 +86,7 @@ class MPLCSystem(zdx.Base):
         ----------
         params : dict
             Raw optimizable parameters, with keys "phase_screens" (pre-bin,
-            pre-mask) and "total_length".
+            pre-mask).
 
         Returns
         -------
@@ -94,17 +99,16 @@ class MPLCSystem(zdx.Base):
         binned_phase_screens = bin_phase_screens(phase_screens, self.bin_size)
         filtered_phase_screens = mask_to_beam_size(binned_phase_screens, npixels=n, diameter=self.mplc_diameter, array_diameter=self.array_diameter)
 
-        return self.set("mplc.phase_screens", filtered_phase_screens).set("mplc.total_length", params["total_length"])
+        return self.set("mplc.phase_screens", filtered_phase_screens)
 
-    def get_params(self) -> dict:
+    def get_processed_params(self) -> dict:
         """
-        Extract the raw optimizable parameters from the `MPLCSystem`.
+        Extract the processed MPLC parameters.
 
         Returns
         -------
         params : dict
-            Raw optimizable parameters, with keys "phase_screens" (pre-bin,
-            pre-mask) and "total_length".
+            MPLC parameters as processed by any operations on phase screens and length.
         """
         return {
             "phase_screens": self.mplc.phase_screens,
