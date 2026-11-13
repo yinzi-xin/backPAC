@@ -10,6 +10,7 @@ stacking multiple systems into batched operations.
 import dLux as dl
 import equinox as eqx
 import jax.numpy as np
+from jax import Array
 import zodiax as zdx
 
 from ..mplc_model import MPLC, InputField
@@ -23,36 +24,36 @@ class MPLCSystem(zdx.Base):
 
     Parameters
     ----------
-    input_modes : np.ndarray
+    input_modes
         Array of input complex field amplitudes, shape (n_modes, wf_npixels, wf_npixels).
         Expected to be orthogonal and normalized.
-    target_modes : np.ndarray
+    target_modes
         Array of target complex field amplitudes, shape (n_modes, wf_npixels, wf_npixels).
         Expected to be (close to) orthogonal and normalized.
-    aperture_diameter : float
+    aperture_diameter
         Diameter of the input aperture.
-    mplc_diameter : float
+    mplc_diameter
         Diameter of the MPLC system.
-    array_diameter : float
+    array_diameter
         Diameter of the array of the simulation.
-    bin_size : int
+    bin_size
         Size of the binning to apply to the phase screens.
-    num_planes : int
+    num_planes
         Number of phase screens in the MPLC system.
-    total_length : float
+    total_length
         Total length of the MPLC system (distance from input to output).
-    target_coordspec_n : int
-    target_coordspec_d : float
-    wavelengths : np.ndarray
+    target_coordspec_n
+    target_coordspec_d
+    wavelengths
         Array of wavelengths to propagate through the MPLC system,
         shape (n_wavelengths,).
-    telescope_modes : np.ndarray, optional
+    telescope_modes, optional
         Array of telescope modes, shape (n_telescope_modes, wf_npixels, wf_npixels).
     """
 
-    input_modes: np.ndarray
+    input_modes: Array
     wf_npixels: int = eqx.field(static=True)
-    target_modes: np.ndarray
+    target_modes: Array
     aperture_diameter: float
     mplc_diameter: float
     array_diameter: float
@@ -61,26 +62,26 @@ class MPLCSystem(zdx.Base):
     total_length: float = eqx.field(static=True)
     target_coordspec_n: int
     target_coordspec_d: float
-    wavelengths: np.ndarray
+    wavelengths: Array
     mplc: MPLC
-    telescope_modes: np.ndarray
-    delta_zs: np.ndarray
+    telescope_modes: Array | None
+    delta_zs: Array
 
     def __init__(
         self,
-        input_modes,
-        target_modes,
-        aperture_diameter,
-        mplc_diameter,
-        array_diameter,
-        bin_size,
-        num_planes,
-        total_length,
-        target_coordspec_n,
-        target_coordspec_d,
-        wavelengths,
-        telescope_modes=None,
-    ):
+        input_modes: Array,
+        target_modes: Array,
+        aperture_diameter: float,
+        mplc_diameter: float,
+        array_diameter: float,
+        bin_size: int,
+        num_planes: int,
+        total_length: float,
+        target_coordspec_n: int,
+        target_coordspec_d: float,
+        wavelengths: Array,
+        telescope_modes: Array | None = None,
+    ) -> None:
         self.input_modes = input_modes
         self.wf_npixels = input_modes.shape[
             1
@@ -110,20 +111,19 @@ class MPLCSystem(zdx.Base):
             target_coordspec_d=self.target_coordspec_d,
         )
 
-    def with_params(self, params: dict) -> "MPLCSystem":
+    def with_params(self, params: dict[str, Array]) -> "MPLCSystem":
         """
         Derive the physical phase screens from raw optimizable `params` and
         return a new `MPLCSystem` with them applied.
 
         Parameters
         ----------
-        params : dict
+        params
             Raw optimizable parameters, with keys "phase_screens" (pre-bin,
             pre-mask).
 
         Returns
         -------
-        MPLCSystem
             A new instance with the binned and beam-masked phase screens and
             the updated total length set on its `mplc` layer.
         """
@@ -139,13 +139,13 @@ class MPLCSystem(zdx.Base):
 
         return self.set("mplc.phase_screens", filtered_phase_screens)
 
-    def get_processed_params(self) -> dict:
+    def get_processed_params(self) -> dict[str, Array]:
         """
         Extract the processed MPLC parameters.
 
         Returns
         -------
-        params : dict
+        params
             MPLC parameters as processed by any operations on phase screens and length.
         """
         return {
@@ -153,7 +153,7 @@ class MPLCSystem(zdx.Base):
             "total_length": self.mplc.total_length,
         }
 
-    def calculate_nuisance_modes(self, n_nuisance=None) -> np.ndarray:
+    def calculate_nuisance_modes(self, n_nuisance: int | None = None) -> Array:
         """
         Calculate the nuisance modes of the MPLC system, which are the modes that
         are orthogonal to the target modes and can be used to assess the
@@ -161,7 +161,6 @@ class MPLCSystem(zdx.Base):
 
         Returns
         -------
-        nuisance_modes : np.ndarray
             Array of nuisance modes, shape (n_nuisance_modes, wf_npixels, wf_npixels).
         """
         if self.telescope_modes is None:
@@ -194,13 +193,12 @@ class MPLCSystem(zdx.Base):
 
         return nuisance_modes
 
-    def propagate_all_modes(self) -> np.ndarray:
+    def propagate_all_modes(self) -> Array:
         """
         Propagate all input modes and nuisance modes through the MPLC system.
 
         Returns
         -------
-        output_fields : np.ndarray
             Array of shape (n_modes + n_nuisance_modes, n_wavelengths,
             target_coordspec_n, target_coordspec_n)
             containing the output complex fields for each mode and wavelength.
@@ -211,10 +209,10 @@ class MPLCSystem(zdx.Base):
         else:
             all_modes = self.input_modes
 
-        def propagate_mode(mode: np.ndarray) -> np.ndarray:
+        def propagate_mode(mode: Array) -> Array:
             input_layer = InputField(field=mode, array_diameter=self.array_diameter)
 
-            def propagate_wavelength(wavelength: np.ndarray) -> np.ndarray:
+            def propagate_wavelength(wavelength: Array) -> Array:
                 wavefront = dl.Wavefront(
                     wavelength, self.wf_npixels, diameter=self.array_diameter
                 )
@@ -226,22 +224,21 @@ class MPLCSystem(zdx.Base):
 
         return eqx.filter_vmap(propagate_mode)(all_modes)
 
-    def propagate_modes(self, modes) -> np.ndarray:
+    def propagate_modes(self, modes: Array) -> Array:
         """
         Propagate the defined modes through the MPLC system.
 
         Returns
         -------
-        output_fields : np.ndarray
             Array of shape (n_modes, n_wavelengths,
             target_coordspec_n, target_coordspec_n)
             containing the output complex fields for each mode and wavelength.
         """
 
-        def propagate_mode(mode: np.ndarray) -> np.ndarray:
+        def propagate_mode(mode: Array) -> Array:
             input_layer = InputField(field=mode, array_diameter=self.array_diameter)
 
-            def propagate_wavelength(wavelength: np.ndarray) -> np.ndarray:
+            def propagate_wavelength(wavelength: Array) -> Array:
                 wavefront = dl.Wavefront(
                     wavelength, self.wf_npixels, diameter=self.array_diameter
                 )
@@ -253,22 +250,21 @@ class MPLCSystem(zdx.Base):
 
         return eqx.filter_vmap(propagate_mode)(modes)
 
-    def __call__(self) -> np.ndarray:
+    def __call__(self) -> Array:
         """
         Propagate every input mode, at every wavelength, through the MPLC system.
 
         Returns
         -------
-        output_fields : np.ndarray
             Array of shape (n_modes, n_wavelengths,
             target_coordspec_n, target_coordspec_n)
             containing the output complex fields for each mode and wavelength.
         """
 
-        def propagate_mode(mode: np.ndarray) -> np.ndarray:
+        def propagate_mode(mode: Array) -> Array:
             input_layer = InputField(field=mode, array_diameter=self.array_diameter)
 
-            def propagate_wavelength(wavelength: np.ndarray) -> np.ndarray:
+            def propagate_wavelength(wavelength: Array) -> Array:
                 wavefront = dl.Wavefront(
                     wavelength, self.wf_npixels, diameter=self.array_diameter
                 )

@@ -7,23 +7,24 @@ evaluating mode transformation quality.
 """
 
 import jax.numpy as np
+from jax import Array
 
 
-def loss_WFM(res, target_modes):
+def loss_WFM(res: Array, target_modes: Array) -> Array:
     """
     Wavefront matching loss: propagate a system's input modes through it and
     measure how well the outputs overlap with the target modes.
 
     Parameters
     ----------
-    res : np.ndarray
+    res
         The output complex fields from the MPLC system, shape (n_batch, n_modes, n_wavelengths, target_coordspec_n, target_coordspec_n).
-    target_modes : np.ndarray
+    target_modes
         The target modes (shared across the batch), shape (n_target_modes, wf_npixels, wf_npixels).
 
     Returns
     -------
-    loss : float
+    loss
         1 minus the mean squared overlap (fidelity) between the propagated
         output modes and their target modes, averaged over the batch,
         wavelengths and modes. A perfect match yields a loss of 0.
@@ -41,7 +42,7 @@ def loss_WFM(res, target_modes):
 
 
 # from Andrea, for cleanliness of the output beam
-def loss_cleanliness(res, target_modes):
+def loss_cleanliness(res: Array, target_modes: Array) -> Array:
     target = target_modes[None, :, None, ...]
     g = np.sum(np.conj(target) * res, axis=(-2, -1))
     residual = res - g[..., None, None] * target
@@ -53,20 +54,20 @@ def loss_cleanliness(res, target_modes):
     return cleanliness
 
 
-def loss_crosstalk(res, target_modes):
+def loss_crosstalk(res: Array, target_modes: Array) -> Array:
     """
     Calculate the crosstalk loss for a given MPLC system.
 
     Parameters
     ----------
-    res : np.ndarray
+    res
         The output complex fields from the MPLC system, shape (n_batch, n_modes, n_wavelengths, target_coordspec_n, target_coordspec_n).
-    target_modes : np.ndarray
+    target_modes
         The target modes (shared across the batch), shape (n_target_modes, wf_npixels, wf_npixels).
 
     Returns
     -------
-    loss : float
+    loss
         The crosstalk: squared overlap of each mode's output with every other
         mode's target, summed over wavelengths and mode pairs, averaged over the batch.
     """
@@ -85,25 +86,27 @@ def loss_crosstalk(res, target_modes):
     return np.mean(term)
 
 
-def loss_nuisance_crosstalk(res, res_nuisance, target_modes):
+def loss_nuisance_crosstalk(
+    res: Array, res_nuisance: Array, target_modes: Array
+) -> Array:
     """
     Calculate the crosstalk loss from nuisance modes to target modes
 
     Parameters
     ----------
-    res : np.ndarray
+    res
         The output complex fields from the MPLC system, shape (n_batch, n_modes,
         n_wavelengths, target_coordspec_n, target_coordspec_n).
-    res_nuisance : np.ndarray
+    res_nuisance
         The output complex fields from the nuisance modes, shape
         (n_batch, n_nuisance_modes, n_wavelengths, target_coordspec_n, target_coordspec_n).
-    target_modes : np.ndarray
+    target_modes
         The target modes (shared across the batch),
         shape (n_target_modes, wf_npixels, wf_npixels).
 
     Returns
     -------
-    loss : float
+    loss
         The crosstalk from nuisance modes to target modes, normalized by the power in the
         target modes and averaged over the batch.
     """
