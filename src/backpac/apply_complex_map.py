@@ -1,3 +1,10 @@
+"""
+Utilities for visualizing complex-valued fields as RGB images.
+
+Provides functions to map complex-valued arrays to RGB colormap representations,
+where hue is determined by phase and brightness by magnitude.
+"""
+
 import cmocean
 import numpy as onp
 

@@ -1,3 +1,11 @@
+"""
+Optical layer definitions for multi-plane light conversion (MPLC) systems.
+
+Defines dLux optical layer components for constructing MPLC systems,
+including the input field generator and the MPLC propagation layer
+with phase screens and free-space propagation between planes.
+"""
+
 import dLux as dl
 import jax.numpy as np
 

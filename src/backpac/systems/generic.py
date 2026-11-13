@@ -1,3 +1,12 @@
+"""
+Generic MPLC systems for optical mode propagation and transformation.
+
+Provides the MPLCSystem class, a general-purpose wrapper around MPLC layers
+for propagating input optical modes through a multi-plane light converter
+and analyzing the output modes against targets. Includes utilities for
+stacking multiple systems into batched operations.
+"""
+
 import dLux as dl
 import equinox as eqx
 import jax.numpy as np

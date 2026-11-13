@@ -1,3 +1,11 @@
+"""
+MPLC coronagraph systems for wavefront control and imaging.
+
+Provides the MPLCCoronagraph class, which wraps an MPLC layer with utilities
+for coronagraphic applications including input/target modes and wavefront
+propagation.
+"""
+
 import dLux as dl
 import equinox as eqx
 import jax.numpy as np

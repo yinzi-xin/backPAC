@@ -1,3 +1,11 @@
+"""
+Phase screen transformation utilities for MPLC systems.
+
+Provides functions for manipulating phase screens including binning to coarser
+resolutions, masking to beam apertures, and applying random spatial shifts
+for stochastic simulation and augmentation.
+"""
+
 import dLux.utils as dlu
 import jax
 import jax.numpy as np

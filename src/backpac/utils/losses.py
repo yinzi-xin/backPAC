@@ -1,3 +1,11 @@
+"""
+Loss functions for MPLC system optimization.
+
+Provides loss functions used in optimizing MPLC systems, including wavefront
+matching loss (fidelity), beam cleanliness, and crosstalk metrics for
+evaluating mode transformation quality.
+"""
+
 import jax.numpy as np
 
 

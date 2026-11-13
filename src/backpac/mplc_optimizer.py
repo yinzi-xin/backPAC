@@ -1,3 +1,11 @@
+"""
+High-level optimizer for multi-plane light conversion (MPLC) systems.
+
+Provides the MPLCOptimizer class for driving joint optimization of one or more
+MPLC systems using JAX and Optax, with support for batched optimization,
+spectral weighting, and mode-specific weights.
+"""
+
 from typing import Sequence
 
 import equinox as eqx
