@@ -33,9 +33,30 @@ build-backend = "uv_build"
 dev = [
     "ipykernel>=7.3.0",
     "ipywidgets>=8.1.9",
+    "pre-commit",
+    "ruff",
 ]
 
 alice = [
     "jax[cuda12]",
-    "jupyter>=1.1.1"
+    "jupyter>=1.1.1",
+    "pre-commit",
+    "ruff",
 ]
+
+[tool.ruff]
+line-length = 88
+
+[tool.ruff.lint]
+# E = pycodestyle, F = Pyflakes, I = Isort (replaces your separate isort config)
+select = ["E", "F", "I"]
+ignore = [
+    "E402", # Allow imports not at the top of the file
+    "E731", # Allow lambda assignments
+    "E741", # Allow ambiguous variable names (l, O, I)
+    "E501", # Allow longer comments
+]
+
+[tool.ruff.lint.isort]
+combine-as-imports = true
+lines-after-imports = 2

@@ -1,6 +1,7 @@
 import cmocean
 import numpy as onp
 
+
 def apply_complex_map(
     field, cmap=cmocean.cm.phase, power=1.0, normalise=True, shift=0.0
 ):
@@ -18,7 +19,7 @@ def apply_complex_map(
     cmap : callable
         A matplotlib colormap function (e.g., plt.cm.hsv).
     power : float, optional
-        Exponent to apply to the magnitude for brightness scaling/gamma (default is 1.0).
+        Exponent to apply to the magnitude for brightness scaling/gamma (default is 1.0)
 
     Returns
     -------

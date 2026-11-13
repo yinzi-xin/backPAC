@@ -1,6 +1,6 @@
-import jax.numpy as np
 import dLux as dl
-import equinox as eqx
+import jax.numpy as np
+
 
 class InputField(dl.OpticalLayer):
     field: np.ndarray
@@ -12,9 +12,12 @@ class InputField(dl.OpticalLayer):
 
     def __call__(self, wavefront):
         wavelength = wavefront.wavelength
-        wavefront = wavefront.from_phasor(self.field, wavelength, diameter=self.array_diameter)
+        wavefront = wavefront.from_phasor(
+            self.field, wavelength, diameter=self.array_diameter
+        )
         wavefront = wavefront.normalise()
         return wavefront
+
 
 class MPLC(dl.OpticalLayer):
     """
@@ -25,7 +28,7 @@ class MPLC(dl.OpticalLayer):
     Parameters
     ----------
     phase_screens : np.ndarray
-        Array of phase values for each plane, shape (num_planes, wf_npixels, wf_npixels).
+        Array of phase values for each plane, shape (num_planes, wf_npixels, wf_npixels)
     delta_zs : np.ndarray
         Array of distances between each phase screen, shape (num_planes,).
     array_diameter : float
@@ -35,15 +38,23 @@ class MPLC(dl.OpticalLayer):
     target_coordspec_d : float
         Physical size of the target plane pixels in metres.
     """
+
     phase_screens: np.ndarray
     num_planes: int
     wf_npixels: int
     delta_zs: np.ndarray
     array_diameter: float
-    target_coordspec_n : int
-    target_coordspec_d : float
+    target_coordspec_n: int
+    target_coordspec_d: float
 
-    def __init__(self, phase_screens, delta_zs, array_diameter, target_coordspec_n, target_coordspec_d):
+    def __init__(
+        self,
+        phase_screens,
+        delta_zs,
+        array_diameter,
+        target_coordspec_n,
+        target_coordspec_d,
+    ):
         self.phase_screens = np.asarray(phase_screens, dtype=float)
         self.num_planes = self.phase_screens.shape[0]
         self.wf_npixels = self.phase_screens.shape[1]
@@ -63,7 +74,9 @@ class MPLC(dl.OpticalLayer):
                     [
                         ("FreeSpace", dl.ABCDFreeSpace(self.delta_zs[i])),
                     ],
-                    dl.CoordSpec(n=self.wf_npixels, d=self.array_diameter / self.wf_npixels),
+                    dl.CoordSpec(
+                        n=self.wf_npixels, d=self.array_diameter / self.wf_npixels
+                    ),
                 )
                 wavefront = between_planes(wavefront)
 

@@ -1,6 +1,7 @@
+import dLux.utils as dlu
 import jax
 import jax.numpy as np
-import dLux.utils as dlu
+
 
 def bin_phase_screens(phase_screens, bin_size=2):
     """Bin phase screens into coarser pixel blocks by local averaging.
@@ -23,12 +24,20 @@ def bin_phase_screens(phase_screens, bin_size=2):
         `bin_size`.
     """
     num_planes, n, _ = phase_screens.shape
-    assert n % bin_size == 0, "wf_npixels must be divisible by bin_size to bin into bin_size x bin_size LC pixel blocks"
+    assert n % bin_size == 0, (
+        "wf_npixels must be divisible by bin_size to bin"
+        + " into bin_size x bin_size LC pixel blocks"
+    )
 
-    lc_phase_screens = phase_screens.reshape(num_planes, n // bin_size, bin_size, n // bin_size, bin_size).mean(axis=(2, 4))
-    binned_phase_screens = np.repeat(np.repeat(lc_phase_screens, bin_size, axis=1), bin_size, axis=2)
+    lc_phase_screens = phase_screens.reshape(
+        num_planes, n // bin_size, bin_size, n // bin_size, bin_size
+    ).mean(axis=(2, 4))
+    binned_phase_screens = np.repeat(
+        np.repeat(lc_phase_screens, bin_size, axis=1), bin_size, axis=2
+    )
 
     return binned_phase_screens
+
 
 def mask_to_beam_size(phase_screens, npixels, diameter, array_diameter, oversample=5):
     """Zero out phase screen values outside the beam aperture.
@@ -64,14 +73,17 @@ def mask_to_beam_size(phase_screens, npixels, diameter, array_diameter, oversamp
 
     return masked_phase_screens
 
+
 def _shift(image, shift):
-    """Shift a 2D image by a (possibly non-integer) number of pixels using the Fourier shift theorem."""
+    """Shift a 2D image by a (possibly non-integer) number of pixels
+    using the Fourier shift theorem."""
     ny, nx = image.shape
-    fy, fx = np.meshgrid(np.fft.fftfreq(ny), np.fft.fftfreq(nx), indexing='ij')
+    fy, fx = np.meshgrid(np.fft.fftfreq(ny), np.fft.fftfreq(nx), indexing="ij")
     phase_ramp = np.exp(-2j * np.pi * (fy * shift[0] + fx * shift[1]))
     return np.real(np.fft.ifft2(np.fft.fft2(image) * phase_ramp))
 
-def apply_random_shifts(phase_screens, key, sigma_pix = 1.0):
+
+def apply_random_shifts(phase_screens, key, sigma_pix=1.0):
     """Apply random shifts in X and Y to each phase screen in the array.
 
     Parameters
