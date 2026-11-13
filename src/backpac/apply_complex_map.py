@@ -5,13 +5,19 @@ Provides functions to map complex-valued arrays to RGB colormap representations,
 where hue is determined by phase and brightness by magnitude.
 """
 
+from collections.abc import Callable
+
 import cmocean
 import numpy as onp
 
 
 def apply_complex_map(
-    field, cmap=cmocean.cm.phase, power=1.0, normalise=True, shift=0.0
-):
+    field: onp.ndarray,
+    cmap: Callable[[onp.ndarray], onp.ndarray] = cmocean.cm.phase,
+    power: float = 1.0,
+    normalise: bool = True,
+    shift: float = 0.0,
+) -> onp.ndarray:
     """
     Maps a complex-valued 2D array to an RGB image using a colormap.
 
@@ -21,16 +27,15 @@ def apply_complex_map(
 
     Parameters
     ----------
-    field : np.ndarray
+    field
         2D array of complex values to visualize.
-    cmap : callable
+    cmap
         A matplotlib colormap function (e.g., plt.cm.hsv).
-    power : float, optional
+    power, optional
         Exponent to apply to the magnitude for brightness scaling/gamma (default is 1.0)
 
     Returns
     -------
-    np.ndarray
         3D array representing the RGB image (shape: field.shape + (3,)).
     """
     angles = onp.angle(field)
