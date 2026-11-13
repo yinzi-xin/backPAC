@@ -1,13 +1,22 @@
+"""
+High-level optimizer for multi-plane light conversion (MPLC) systems.
+
+Provides the MPLCOptimizer class for driving joint optimization of one or more
+MPLC systems using JAX and Optax, with support for batched optimization,
+spectral weighting, and mode-specific weights.
+"""
+
+from typing import Sequence
+
 import equinox as eqx
-import zodiax as zdx
-import optax
 import jax
 import jax.numpy as np
-import dLux as dl
-from typing import Sequence
-from .systems.generic import MPLCSystem, loss_WFM, stack_systems
+import optax
 
-class MPLCOptimizer():
+from .systems.generic import MPLCSystem, stack_systems
+
+
+class MPLCOptimizer:
     """
     Optimizer for one or more MPLC systems built with dLux.
 
@@ -47,12 +56,15 @@ class MPLCOptimizer():
 
         if params is None:
             params = [
-                {"phase_screens": system.mplc.phase_screens, "total_length": system.mplc.total_length}
+                {
+                    "phase_screens": system.mplc.phase_screens,
+                    "total_length": system.mplc.total_length,
+                }
                 for system in self.mplc_systems
             ]
         self.params = jax.tree_util.tree_map(lambda *leaves: np.stack(leaves), *params)
 
-        #assumes every system shares the same wavelengths
+        # assumes every system shares the same wavelengths
         self.wavelengths = self.mplc_systems[0].wavelengths
         self.wavelength_weights = (
             wavelength_weights
@@ -77,7 +89,9 @@ class MPLCOptimizer():
         and wavelengths, and return the stack of output complex field arrays,
         shape (n_systems, n_modes, n_wavelengths, wf_npixels, wf_npixels).
         """
-        configured_system = eqx.filter_vmap(MPLCSystem.with_params)(self.batched_system, self.params)
+        configured_system = eqx.filter_vmap(MPLCSystem.with_params)(
+            self.batched_system, self.params
+        )
         output = eqx.filter_vmap(lambda system: system())(configured_system)
         return output
 

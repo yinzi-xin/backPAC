@@ -1,6 +1,14 @@
-import jax.numpy as np
+"""
+Optical layer definitions for multi-plane light conversion (MPLC) systems.
+
+Defines dLux optical layer components for constructing MPLC systems,
+including the input field generator and the MPLC propagation layer
+with phase screens and free-space propagation between planes.
+"""
+
 import dLux as dl
-import equinox as eqx
+import jax.numpy as np
+
 
 class InputField(dl.OpticalLayer):
     field: np.ndarray
@@ -12,9 +20,12 @@ class InputField(dl.OpticalLayer):
 
     def __call__(self, wavefront):
         wavelength = wavefront.wavelength
-        wavefront = wavefront.from_phasor(self.field, wavelength, diameter=self.array_diameter)
+        wavefront = wavefront.from_phasor(
+            self.field, wavelength, diameter=self.array_diameter
+        )
         wavefront = wavefront.normalise()
         return wavefront
+
 
 class MPLC(dl.OpticalLayer):
     """
@@ -25,53 +36,61 @@ class MPLC(dl.OpticalLayer):
     Parameters
     ----------
     phase_screens : np.ndarray
-        Array of phase values for each plane, shape (num_planes, wf_npixels, wf_npixels).
-    total_length : float
-        Total length of the MPLC system (distance from input to output).
-    num_planes : int
-        Number of phase screens in the MPLC system.
+        Array of phase values for each plane, shape (num_planes, wf_npixels, wf_npixels)
+    delta_zs : np.ndarray
+        Array of distances between each phase screen, shape (num_planes,).
     array_diameter : float
         Diameter of the array of the simulation.
-    wf_npixels : int
-        Number of pixels representing the wavefront at each phase screen.
     target_coordspec_n : int
         Number of pixels across the target plane.
     target_coordspec_d : float
         Physical size of the target plane pixels in metres.
     """
-    phase_screens: np.ndarray
-    total_length: float
-    num_planes: int = eqx.field(static=True)
-    array_diameter: float
-    wf_npixels: int = eqx.field(static=True)
-    target_coordspec_n : int
-    target_coordspec_d : float
 
-    def __init__(self, phase_screens, total_length, num_planes, array_diameter, wf_npixels, target_coordspec_n, target_coordspec_d):
+    phase_screens: np.ndarray
+    num_planes: int
+    wf_npixels: int
+    delta_zs: np.ndarray
+    array_diameter: float
+    target_coordspec_n: int
+    target_coordspec_d: float
+
+    def __init__(
+        self,
+        phase_screens,
+        delta_zs,
+        array_diameter,
+        target_coordspec_n,
+        target_coordspec_d,
+    ):
         self.phase_screens = np.asarray(phase_screens, dtype=float)
-        self.total_length = np.asarray(total_length, dtype=float)
-        self.num_planes = num_planes
+        self.num_planes = self.phase_screens.shape[0]
+        self.wf_npixels = self.phase_screens.shape[1]
+
+        self.delta_zs = np.asarray(delta_zs, dtype=float)
+
         self.array_diameter = array_diameter
-        self.wf_npixels = wf_npixels
         self.target_coordspec_n = target_coordspec_n
         self.target_coordspec_d = target_coordspec_d
 
     def __call__(self, wavefront):
-        between_planes = dl.MFTPropagator(
-            [
-                ("FreeSpace", dl.ABCDFreeSpace(self.total_length / self.num_planes)),
-            ],
-            dl.CoordSpec(n=self.wf_npixels, d=self.array_diameter / self.wf_npixels),
-        )
 
         for i in range(self.num_planes):
             wavefront = dl.AberratedLayer(phase=self.phase_screens[i])(wavefront)
             if i < self.num_planes - 1:
+                between_planes = dl.MFTPropagator(
+                    [
+                        ("FreeSpace", dl.ABCDFreeSpace(self.delta_zs[i])),
+                    ],
+                    dl.CoordSpec(
+                        n=self.wf_npixels, d=self.array_diameter / self.wf_npixels
+                    ),
+                )
                 wavefront = between_planes(wavefront)
 
         output_propagator = dl.MFTPropagator(
             [
-                ("FreeSpace", dl.ABCDFreeSpace(self.total_length / self.num_planes)),
+                ("FreeSpace", dl.ABCDFreeSpace(self.delta_zs[-1])),
             ],
             dl.CoordSpec(n=self.target_coordspec_n, d=self.target_coordspec_d),
         )

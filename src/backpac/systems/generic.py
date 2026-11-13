@@ -1,10 +1,20 @@
-import jax
-import jax.numpy as np
+"""
+Generic MPLC systems for optical mode propagation and transformation.
+
+Provides the MPLCSystem class, a general-purpose wrapper around MPLC layers
+for propagating input optical modes through a multi-plane light converter
+and analyzing the output modes against targets. Includes utilities for
+stacking multiple systems into batched operations.
+"""
+
 import dLux as dl
 import equinox as eqx
+import jax.numpy as np
 import zodiax as zdx
+
 from ..mplc_model import MPLC, InputField
-from ..utils.operations import bin_phase_screens, mask_to_beam_size
+from ..utils.phase_screen_transforms import bin_phase_screens, mask_to_beam_size
+
 
 class MPLCSystem(zdx.Base):
     """
@@ -14,9 +24,11 @@ class MPLCSystem(zdx.Base):
     Parameters
     ----------
     input_modes : np.ndarray
-        Array of input complex field amplitudes, shape (n_modes, wf_npixels, wf_npixels). Expected to be orthogonal and normalized.
+        Array of input complex field amplitudes, shape (n_modes, wf_npixels, wf_npixels).
+        Expected to be orthogonal and normalized.
     target_modes : np.ndarray
-        Array of target complex field amplitudes, shape (n_modes, wf_npixels, wf_npixels). Expected to be (close to) orthogonal and normalized.
+        Array of target complex field amplitudes, shape (n_modes, wf_npixels, wf_npixels).
+        Expected to be (close to) orthogonal and normalized.
     aperture_diameter : float
         Diameter of the input aperture.
     mplc_diameter : float
@@ -32,44 +44,70 @@ class MPLCSystem(zdx.Base):
     target_coordspec_n : int
     target_coordspec_d : float
     wavelengths : np.ndarray
-        Array of wavelengths to propagate through the MPLC system, shape (n_wavelengths,).
+        Array of wavelengths to propagate through the MPLC system,
+        shape (n_wavelengths,).
     telescope_modes : np.ndarray, optional
         Array of telescope modes, shape (n_telescope_modes, wf_npixels, wf_npixels).
     """
+
     input_modes: np.ndarray
+    wf_npixels: int = eqx.field(static=True)
     target_modes: np.ndarray
     aperture_diameter: float
     mplc_diameter: float
     array_diameter: float
     bin_size: int = eqx.field(static=True)
+    num_planes: int = eqx.field(static=True)
+    total_length: float = eqx.field(static=True)
     target_coordspec_n: int
     target_coordspec_d: float
     wavelengths: np.ndarray
-    wf_npixels: int = eqx.field(static=True)
     mplc: MPLC
     telescope_modes: np.ndarray
+    delta_zs: np.ndarray
 
-    def __init__(self, input_modes, target_modes, aperture_diameter, mplc_diameter, array_diameter, bin_size, num_planes, total_length, target_coordspec_n, target_coordspec_d, wavelengths, telescope_modes=None):
+    def __init__(
+        self,
+        input_modes,
+        target_modes,
+        aperture_diameter,
+        mplc_diameter,
+        array_diameter,
+        bin_size,
+        num_planes,
+        total_length,
+        target_coordspec_n,
+        target_coordspec_d,
+        wavelengths,
+        telescope_modes=None,
+    ):
         self.input_modes = input_modes
+        self.wf_npixels = input_modes.shape[
+            1
+        ]  # Assuming input_modes has shape (n_modes, wf_npixels, wf_npixels)
         self.target_modes = target_modes
         self.aperture_diameter = aperture_diameter
         self.mplc_diameter = mplc_diameter
         self.array_diameter = array_diameter
         self.bin_size = bin_size
+        self.num_planes = num_planes
+        self.total_length = total_length
         self.target_coordspec_n = target_coordspec_n
         self.target_coordspec_d = target_coordspec_d
         self.wavelengths = wavelengths
-        self.wf_npixels = input_modes.shape[1]  # Assuming input_modes has shape (n_modes, wf_npixels, wf_npixels)
         self.telescope_modes = telescope_modes
 
+        self.delta_zs = (
+            np.linspace(0, self.total_length, self.num_planes + 1)[1:]
+            - np.linspace(0, self.total_length, self.num_planes + 1)[:-1]
+        )
+
         self.mplc = MPLC(
-            phase_screens=np.zeros((num_planes, self.wf_npixels, self.wf_npixels)),
-            total_length=total_length,
-            num_planes=num_planes,
-            array_diameter=array_diameter,
-            wf_npixels=self.wf_npixels,
-            target_coordspec_n = self.target_coordspec_n,
-            target_coordspec_d = self.target_coordspec_d,
+            phase_screens=np.zeros((self.num_planes, self.wf_npixels, self.wf_npixels)),
+            delta_zs=self.delta_zs,
+            array_diameter=self.array_diameter,
+            target_coordspec_n=self.target_coordspec_n,
+            target_coordspec_d=self.target_coordspec_d,
         )
 
     def with_params(self, params: dict) -> "MPLCSystem":
@@ -81,7 +119,7 @@ class MPLCSystem(zdx.Base):
         ----------
         params : dict
             Raw optimizable parameters, with keys "phase_screens" (pre-bin,
-            pre-mask) and "total_length".
+            pre-mask).
 
         Returns
         -------
@@ -92,26 +130,30 @@ class MPLCSystem(zdx.Base):
         phase_screens = params["phase_screens"]
         n = phase_screens.shape[-1]
         binned_phase_screens = bin_phase_screens(phase_screens, self.bin_size)
-        filtered_phase_screens = mask_to_beam_size(binned_phase_screens, npixels=n, diameter=self.mplc_diameter, array_diameter=self.array_diameter)
+        filtered_phase_screens = mask_to_beam_size(
+            binned_phase_screens,
+            npixels=n,
+            diameter=self.mplc_diameter,
+            array_diameter=self.array_diameter,
+        )
 
-        return self.set("mplc.phase_screens", filtered_phase_screens).set("mplc.total_length", params["total_length"])
+        return self.set("mplc.phase_screens", filtered_phase_screens)
 
-    def get_params(self) -> dict:
+    def get_processed_params(self) -> dict:
         """
-        Extract the raw optimizable parameters from the `MPLCSystem`.
+        Extract the processed MPLC parameters.
 
         Returns
         -------
         params : dict
-            Raw optimizable parameters, with keys "phase_screens" (pre-bin,
-            pre-mask) and "total_length".
+            MPLC parameters as processed by any operations on phase screens and length.
         """
         return {
             "phase_screens": self.mplc.phase_screens,
-            "total_length": self.mplc.total_length
+            "total_length": self.mplc.total_length,
         }
 
-    def calculate_nuisance_modes(self, n_nuisance = None) -> np.ndarray:
+    def calculate_nuisance_modes(self, n_nuisance=None) -> np.ndarray:
         """
         Calculate the nuisance modes of the MPLC system, which are the modes that
         are orthogonal to the target modes and can be used to assess the
@@ -123,26 +165,33 @@ class MPLCSystem(zdx.Base):
             Array of nuisance modes, shape (n_nuisance_modes, wf_npixels, wf_npixels).
         """
         if self.telescope_modes is None:
-            raise ValueError("Telescope modes must be provided to calculate nuisance modes.")
+            raise ValueError(
+                "Telescope modes must be provided to calculate nuisance modes."
+            )
 
         # Calculate the projection of each telescope mode onto each input mode,
         # keeping the telescope-mode axis (t) and input-mode axis (m) distinct
-        overlap = np.einsum('mij,tij->tm', np.conj(self.input_modes), self.telescope_modes)
+        overlap = np.einsum(
+            "mij,tij->tm", np.conj(self.input_modes), self.telescope_modes
+        )
 
-        # Calculate the residual modes (nuisance modes) by removing the span of the input modes
-        projection = np.einsum('tm,mij->tij', overlap, self.input_modes)
+        # Calculate the residual modes (nuisance modes) by removing the span
+        # of the input modes
+        projection = np.einsum("tm,mij->tij", overlap, self.input_modes)
         residual = self.telescope_modes - projection
 
         # Orthonormalize the residual modes using QR decomposition.
         flat_residual = residual.reshape(residual.shape[0], -1)
         q, r = np.linalg.qr(flat_residual.T)
 
-        nuisance_modes = q.T.reshape(residual.shape[0], self.wf_npixels, self.wf_npixels)
+        nuisance_modes = q.T.reshape(
+            residual.shape[0], self.wf_npixels, self.wf_npixels
+        )
 
         # If n_nuisance is specified, return only the first n_nuisance nuisance modes
         if n_nuisance is not None:
             nuisance_modes = nuisance_modes[:n_nuisance]
-        
+
         return nuisance_modes
 
     def propagate_all_modes(self) -> np.ndarray:
@@ -152,7 +201,8 @@ class MPLCSystem(zdx.Base):
         Returns
         -------
         output_fields : np.ndarray
-            Array of shape (n_modes + n_nuisance_modes, n_wavelengths, target_coordspec_n, target_coordspec_n)
+            Array of shape (n_modes + n_nuisance_modes, n_wavelengths,
+            target_coordspec_n, target_coordspec_n)
             containing the output complex fields for each mode and wavelength.
         """
         if self.telescope_modes is not None:
@@ -165,7 +215,9 @@ class MPLCSystem(zdx.Base):
             input_layer = InputField(field=mode, array_diameter=self.array_diameter)
 
             def propagate_wavelength(wavelength: np.ndarray) -> np.ndarray:
-                wavefront = dl.Wavefront(wavelength, self.wf_npixels, diameter=self.array_diameter)
+                wavefront = dl.Wavefront(
+                    wavelength, self.wf_npixels, diameter=self.array_diameter
+                )
                 wavefront = input_layer(wavefront)
                 wavefront = self.mplc(wavefront)
                 return wavefront.phasor
@@ -181,7 +233,8 @@ class MPLCSystem(zdx.Base):
         Returns
         -------
         output_fields : np.ndarray
-            Array of shape (n_modes, n_wavelengths, target_coordspec_n, target_coordspec_n)
+            Array of shape (n_modes, n_wavelengths,
+            target_coordspec_n, target_coordspec_n)
             containing the output complex fields for each mode and wavelength.
         """
 
@@ -189,7 +242,9 @@ class MPLCSystem(zdx.Base):
             input_layer = InputField(field=mode, array_diameter=self.array_diameter)
 
             def propagate_wavelength(wavelength: np.ndarray) -> np.ndarray:
-                wavefront = dl.Wavefront(wavelength, self.wf_npixels, diameter=self.array_diameter)
+                wavefront = dl.Wavefront(
+                    wavelength, self.wf_npixels, diameter=self.array_diameter
+                )
                 wavefront = input_layer(wavefront)
                 wavefront = self.mplc(wavefront)
                 return wavefront.phasor
@@ -205,7 +260,8 @@ class MPLCSystem(zdx.Base):
         Returns
         -------
         output_fields : np.ndarray
-            Array of shape (n_modes, n_wavelengths, target_coordspec_n, target_coordspec_n)
+            Array of shape (n_modes, n_wavelengths,
+            target_coordspec_n, target_coordspec_n)
             containing the output complex fields for each mode and wavelength.
         """
 
@@ -213,7 +269,9 @@ class MPLCSystem(zdx.Base):
             input_layer = InputField(field=mode, array_diameter=self.array_diameter)
 
             def propagate_wavelength(wavelength: np.ndarray) -> np.ndarray:
-                wavefront = dl.Wavefront(wavelength, self.wf_npixels, diameter=self.array_diameter)
+                wavefront = dl.Wavefront(
+                    wavelength, self.wf_npixels, diameter=self.array_diameter
+                )
                 wavefront = input_layer(wavefront)
                 wavefront = self.mplc(wavefront)
                 return wavefront.phasor
