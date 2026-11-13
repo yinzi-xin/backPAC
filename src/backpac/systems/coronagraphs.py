@@ -6,9 +6,12 @@ for coronagraphic applications including input/target modes and wavefront
 propagation.
 """
 
+from collections.abc import Sequence
+
 import dLux as dl
 import equinox as eqx
 import jax.numpy as np
+from jax import Array
 import zodiax as zdx
 
 from ..mplc_model import MPLC, InputField
@@ -20,35 +23,35 @@ class MPLCCoronagraph(zdx.Base):
 
     Parameters
     ----------
-    wf_npixels : int
+    wf_npixels
         Number of pixels representing the wavefront at each phase screen.
-    diameter : float
-    num_planes : int
+    diameter
+    num_planes
         Number of phase screens in the MPLC system.
-    total_length : float
+    total_length
         Total length of the MPLC system (distance from input to output).
-    target_coordspec_n : int
-    target_coordspec_d : float
-    wavelengths : np.ndarray
+    target_coordspec_n
+    target_coordspec_d
+    wavelengths
         Array of wavelengths to propagate through the MPLC system,
         shape (n_wavelengths,).
     """
 
     wf_npixels: int
     diameter: float
-    wavelengths: np.ndarray
+    wavelengths: Array
     mplc: MPLC
 
     def __init__(
         self,
-        wf_npixels,
-        diameter,
-        num_planes,
-        total_length,
-        target_coordspec_n,
-        target_coordspec_d,
-        wavelengths,
-    ):
+        wf_npixels: int,
+        diameter: float,
+        num_planes: int,
+        total_length: float,
+        target_coordspec_n: int,
+        target_coordspec_d: float,
+        wavelengths: Array,
+    ) -> None:
         self.diameter = diameter
         self.wavelengths = wavelengths
         self.wf_npixels = wf_npixels
@@ -63,22 +66,21 @@ class MPLCCoronagraph(zdx.Base):
             target_coordspec_d=target_coordspec_d,
         )
 
-    def __call__(self) -> np.ndarray:
+    def __call__(self) -> Array:
         """
         Propagate every input mode, at every wavelength, through the MPLC system.
 
         Returns
         -------
-        output_fields : np.ndarray
             Array of shape (n_modes, n_wavelengths,
                 target_coordspec_n, target_coordspec_n)
             containing the output complex fields for each mode and wavelength.
         """
 
-        def propagate_mode(mode: np.ndarray) -> np.ndarray:
+        def propagate_mode(mode: Array) -> Array:
             input_layer = InputField(field=mode, diameter=self.diameter)
 
-            def propagate_wavelength(wavelength: np.ndarray) -> np.ndarray:
+            def propagate_wavelength(wavelength: Array) -> Array:
                 wavefront = dl.Wavefront(
                     wavelength, self.wf_npixels, diameter=self.diameter
                 )
@@ -91,62 +93,65 @@ class MPLCCoronagraph(zdx.Base):
         return eqx.filter_vmap(propagate_mode)(self.input_modes)
 
 
-def calc_eta_modal(mplc_coronagraph, position):
+def calc_eta_modal(
+    mplc_coronagraph: MPLCCoronagraph, position: Array
+) -> NotImplementedError:
     """
     Calculate the throughput (eta) per output mode of an MPLC system for a
     given input position.
 
     Parameters
     ----------
-    mplc_coronagraph : MPLCCoronagraph
+    mplc_coronagraph
         The MPLC coronagraph to evaluate.
-    position : tuple
+    position
         The (x, y) coordinates of the input position in the input plane.
 
     Returns
     -------
-    eta : float
+    eta
         The modal throughput of the MPLC system for the given input position.
     """
 
     return NotImplementedError("calc_eta_modal function is not yet implemented.")
 
 
-def calc_eta_aperture(mplc_coronagraph, position):
+def calc_eta_aperture(
+    mplc_coronagraph: MPLCCoronagraph, position: Array
+) -> NotImplementedError:
     """
     Calculate the throughput (eta) within a photometric aperture surrounding the
     outputs of an MPLC system for a given input position.
 
     Parameters
     ----------
-    mplc_coronagraph : MPLCCoronagraph
+    mplc_coronagraph
         The MPLC coronagraph to evaluate.
-    position : tuple
+    position
         The (x, y) coordinates of the input position in the input plane.
 
     Returns
     -------
-    eta : float
+    eta
         The aperture throughput of the MPLC system for the given input position.
     """
 
     return NotImplementedError("calc_eta_aperture function is not yet implemented.")
 
 
-def gen_star_positions(diameter, n_across):
+def gen_star_positions(diameter: float, n_across: int) -> Array:
     """
     Generate a grid of star positions across the input plane.
 
     Parameters
     ----------
-    diameter : float
+    diameter
         The diameter of the input plane.
-    n_across : int
+    n_across
         The number of positions to sample across the diameter.
 
     Returns
     -------
-    star_positions : np.ndarray
         Array of (x, y) input-plane positions to sample the star over, shape
         (n_positions, 2).
     """
@@ -162,8 +167,11 @@ def gen_star_positions(diameter, n_across):
 
 
 def loss_negative_log_cfi_aperture(
-    mplc_coronagraphs, star_positions, planet_position, planet_c
-):
+    mplc_coronagraphs: Sequence[MPLCCoronagraph],
+    star_positions: Array,
+    planet_position: Array,
+    planet_c: float,
+) -> Array:
     """
     Negative log10 Classical Fisher Information (CFI) loss: measures -log10(CFI)
     of planet_c under photon-noise statistics, where CFI is averaged over all
@@ -171,19 +179,19 @@ def loss_negative_log_cfi_aperture(
 
     Parameters
     ----------
-    mplc_coronagraphs : Sequence[MPLCCoronagraph]
+    mplc_coronagraphs
         MPLC coronagraphs to evaluate.
-    star_positions : np.ndarray
+    star_positions
         Array of (x, y) input-plane positions to sample the star over, shape
         (n_positions, 2).
-    planet_position : tuple
+    planet_position
         The (x, y) input-plane position of the planet.
-    planet_c : float
+    planet_c
         The relative intensity of the planet with respect to the star, in [0, 1].
 
     Returns
     -------
-    loss : float
+    loss
         The negative log10 of the mean, over all systems, of the CFI of the planet_c.
     """
 

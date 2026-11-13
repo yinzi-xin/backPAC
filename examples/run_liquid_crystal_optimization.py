@@ -5,6 +5,7 @@ import dLux.utils as dlu
 import equinox as eqx
 import jax
 import jax.numpy as np
+from jax import Array
 import matplotlib.pyplot as plt
 import optax
 import zodiax as zdx
@@ -16,12 +17,12 @@ from backpac.utils.losses import loss_nuisance_crosstalk, loss_WFM
 from backpac.utils.phase_screen_transforms import apply_random_shifts
 
 
-def _fmt(value):
+def _fmt(value: float) -> str:
     """Make a float filename-safe, e.g. 1e-3 -> '1em3', 2.0 -> '2p0'."""
     return f"{value:g}".replace(".", "p").replace("-", "m")
 
 
-def parse_args():
+def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--sigma_pix",
@@ -45,17 +46,17 @@ def parse_args():
 
 
 def _chunk_loss(
-    params,
-    mplc_system,
-    nuisance_modes,
-    chunk_keys,
-    sigma_pix,
-    sigma_length,
-    wavelength_min,
-    wavelength_max,
-    crosstalk_weight,
-):
-    def perturb_system(sample_key):
+    params: dict[str, Array],
+    mplc_system: MPLCSystem,
+    nuisance_modes: Array | None,
+    chunk_keys: Array,
+    sigma_pix: float,
+    sigma_length: float,
+    wavelength_min: float | None,
+    wavelength_max: float | None,
+    crosstalk_weight: float,
+) -> Array:
+    def perturb_system(sample_key: Array) -> MPLCSystem:
         key_shift, key_temp = jax.random.split(sample_key)
         key_wavel, key_length = jax.random.split(key_temp)
         sample_params = dict(params)
@@ -77,7 +78,7 @@ def _chunk_loss(
         return loss_WFM(res, mplc_system.target_modes)
     else:
 
-        def propagate_one(sample_key):
+        def propagate_one(sample_key: Array) -> tuple[Array, Array]:
             sample_system = perturb_system(sample_key)
             return sample_system(), sample_system.propagate_modes(nuisance_modes)
 
@@ -91,18 +92,18 @@ def _chunk_loss(
 
 @eqx.filter_jit
 def loss_fn_combined_crosstalk(
-    params,
-    mplc_system,
-    nuisance_modes,
-    key,
-    n_batch=8,
-    micro_batch_size=None,
-    sigma_pix=1.0,
-    sigma_length=1e-3,
-    wavelength_min=None,
-    wavelength_max=None,
-    crosstalk_weight=0.1,
-):
+    params: dict[str, Array],
+    mplc_system: MPLCSystem,
+    nuisance_modes: Array | None,
+    key: Array,
+    n_batch: int = 8,
+    micro_batch_size: int | None = None,
+    sigma_pix: float = 1.0,
+    sigma_length: float = 1e-3,
+    wavelength_min: float | None = None,
+    wavelength_max: float | None = None,
+    crosstalk_weight: float = 0.1,
+) -> tuple[Array, dict[str, Array]]:
     # Mini-batch + gradient accumulation: bounds peak memory to micro_batch_size
     # instead of n_batch.
     # micro_batch_size=None (default) replicates the old single-vmap behaviour
@@ -129,7 +130,9 @@ def loss_fn_combined_crosstalk(
         )
     )
 
-    def scan_body(carry, chunk_keys):
+    def scan_body(
+        carry: tuple[Array, dict[str, Array]], chunk_keys: Array
+    ) -> tuple[tuple[Array, dict[str, Array]], None]:
         loss_acc, grad_acc = carry
         loss_val, grad_val = chunk_value_and_grad(params, chunk_keys)
         grad_acc = jax.tree_util.tree_map(lambda a, b: a + b, grad_acc, grad_val)
@@ -144,7 +147,7 @@ def loss_fn_combined_crosstalk(
     return total_loss / n_micro_batches, mean_grad
 
 
-def main(sigma_pix, sigma_length, crosstalk_weight):
+def main(sigma_pix: float, sigma_length: float, crosstalk_weight: float) -> None:
     run_tag = (
         f"sigma_pix{_fmt(sigma_pix)}_sigma_length{_fmt(sigma_length)}_"
         "crosstalk{_fmt(crosstalk_weight)}"

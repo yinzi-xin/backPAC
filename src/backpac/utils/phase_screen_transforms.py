@@ -9,9 +9,10 @@ for stochastic simulation and augmentation.
 import dLux.utils as dlu
 import jax
 import jax.numpy as np
+from jax import Array
 
 
-def bin_phase_screens(phase_screens, bin_size=2):
+def bin_phase_screens(phase_screens: Array, bin_size: int = 2) -> Array:
     """Bin phase screens into coarser pixel blocks by local averaging.
 
     Each `bin_size x bin_size` block of simulation pixels is averaged into
@@ -20,14 +21,13 @@ def bin_phase_screens(phase_screens, bin_size=2):
 
     Parameters
     ----------
-    phase_screens : ndarray
+    phase_screens
         Array of phase screens, shaped `(num_planes, n, n)`.
-    bin_size : int, optional
+    bin_size, optional
         Side length of the square pixel block to average over, by default 2.
 
     Returns
     -------
-    ndarray
         Phase screens of the same shape as `phase_screens`, binned by
         `bin_size`.
     """
@@ -47,7 +47,13 @@ def bin_phase_screens(phase_screens, bin_size=2):
     return binned_phase_screens
 
 
-def mask_to_beam_size(phase_screens, npixels, diameter, array_diameter, oversample=5):
+def mask_to_beam_size(
+    phase_screens: Array,
+    npixels: int,
+    diameter: float,
+    array_diameter: float,
+    oversample: int = 5,
+) -> Array:
     """Zero out phase screen values outside the beam aperture.
 
     A single circular aperture mask is computed and applied to every plane in
@@ -55,20 +61,19 @@ def mask_to_beam_size(phase_screens, npixels, diameter, array_diameter, oversamp
 
     Parameters
     ----------
-    phase_screens : ndarray
+    phase_screens
         Array of phase screens.
-    npixels : int
+    npixels
         Number of pixels across the array.
-    diameter : float
+    diameter
         Diameter of the circular aperture (beam), in metres.
-    array_diameter : float
+    array_diameter
         Diameter of the full array, in metres.
-    oversample : int
+    oversample
         Oversampling factor used when generating the aperture mask.
 
     Returns
     -------
-    ndarray
         `phase_screens` with values outside the aperture set to zero.
     """
     mask = dlu.circular_aperture(
@@ -82,7 +87,7 @@ def mask_to_beam_size(phase_screens, npixels, diameter, array_diameter, oversamp
     return masked_phase_screens
 
 
-def _shift(image, shift):
+def _shift(image: Array, shift: Array) -> Array:
     """Shift a 2D image by a (possibly non-integer) number of pixels
     using the Fourier shift theorem."""
     ny, nx = image.shape
@@ -91,21 +96,22 @@ def _shift(image, shift):
     return np.real(np.fft.ifft2(np.fft.fft2(image) * phase_ramp))
 
 
-def apply_random_shifts(phase_screens, key, sigma_pix=1.0):
+def apply_random_shifts(
+    phase_screens: Array, key: Array, sigma_pix: float = 1.0
+) -> Array:
     """Apply random shifts in X and Y to each phase screen in the array.
 
     Parameters
     ----------
-    phase_screens : ndarray
+    phase_screens
         Array of phase screens, shaped `(num_planes, n, n)`.
-    key : jax.random.PRNGKey
+    key
         PRNG key used to generate the random shifts.
-    sigma_pix : float, optional
+    sigma_pix, optional
         Standard deviation of the random shifts in pixels, by default 1.0.
 
     Returns
     -------
-    ndarray
         Phase screens with random shifts applied.
     """
     num_planes, n, _ = phase_screens.shape
