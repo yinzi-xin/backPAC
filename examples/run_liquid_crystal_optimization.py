@@ -12,8 +12,8 @@ from scipy.ndimage import zoom
 from tqdm import tqdm
 
 from backpac.systems.generic import MPLCSystem
-from backpac.utils.costs import loss_nuisance_crosstalk, loss_WFM
-from backpac.utils.operations import apply_random_shifts
+from backpac.utils.losses import loss_nuisance_crosstalk, loss_WFM
+from backpac.utils.phase_screen_transforms import apply_random_shifts
 
 
 def _fmt(value):

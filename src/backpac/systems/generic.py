@@ -4,7 +4,7 @@ import jax.numpy as np
 import zodiax as zdx
 
 from ..mplc_model import MPLC, InputField
-from ..utils.operations import bin_phase_screens, mask_to_beam_size
+from ..utils.phase_screen_transforms import bin_phase_screens, mask_to_beam_size
 
 
 class MPLCSystem(zdx.Base):
