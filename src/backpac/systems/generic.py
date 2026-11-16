@@ -10,8 +10,8 @@ stacking multiple systems into batched operations.
 import dLux as dl
 import equinox as eqx
 import jax.numpy as np
-from jax import Array
 import zodiax as zdx
+from jax import Array
 
 from ..mplc_model import MPLC, InputField
 from ..utils.phase_screen_transforms import bin_phase_screens, mask_to_beam_size
@@ -43,7 +43,9 @@ class MPLCSystem(zdx.Base):
     total_length
         Total length of the MPLC system (distance from input to output).
     target_coordspec_n
+        Number of pixels in the target coordinate specification.
     target_coordspec_d
+        Pixel size in the target coordinate specification.
     wavelengths
         Array of wavelengths to propagate through the MPLC system,
         shape (n_wavelengths,).
