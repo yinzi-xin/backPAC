@@ -6,11 +6,12 @@ MPLC systems using JAX and Optax, with support for batched optimization,
 spectral weighting, and mode-specific weights.
 """
 
-from typing import Sequence
+from collections.abc import Sequence
 
 import equinox as eqx
 import jax
 import jax.numpy as np
+from jax import Array
 import optax
 
 from .systems.generic import MPLCSystem, stack_systems
@@ -27,19 +28,19 @@ class MPLCOptimizer:
 
     Parameters
     ----------
-    mplc_systems : Sequence[MPLCSystem]
+    mplc_systems
         MPLC systems to optimize jointly. Must all share the same pytree
         structure (shapes, num_planes, etc.), since they are stacked into a
         single batched `MPLCSystem` via `stack_systems`.
-    params : Sequence[dict] | None
+    params, optional
         Raw optimizable parameters ("phase_screens", "total_length") for each
         system, pre-bin and pre-mask. Defaults to each system's current
         `mplc.phase_screens` / `mplc.total_length` when None.
-    wavelength_weights : np.ndarray | None
+    wavelength_weights, optional
         Per-wavelength spectral weights, shape (n_wavelengths,). Defaults to
         uniform weighting when None. Assumes all systems share the same
         wavelengths (taken from the first system).
-    mode_weights : np.ndarray | None
+    mode_weights, optional
         Per-mode weights for the loss function, shape (n_modes,). Defaults to
         uniform weighting when None.
     """
@@ -47,10 +48,10 @@ class MPLCOptimizer:
     def __init__(
         self,
         mplc_systems: Sequence[MPLCSystem],
-        params: Sequence[dict] | None = None,
-        wavelength_weights: np.ndarray | None = None,
-        mode_weights: np.ndarray | None = None,
-    ):
+        params: Sequence[dict[str, Array]] | None = None,
+        wavelength_weights: Array | None = None,
+        mode_weights: Array | None = None,
+    ) -> None:
         self.mplc_systems = list(mplc_systems)
         self.batched_system = stack_systems(self.mplc_systems)
 
@@ -83,7 +84,7 @@ class MPLCOptimizer:
     # Forward passes
     # ------------------------------------------------------------------
 
-    def get_spectral_field(self) -> np.ndarray:
+    def get_spectral_field(self) -> Array:
         """
         Apply the current raw `params` to every system, propagate all modes
         and wavelengths, and return the stack of output complex field arrays,
@@ -95,7 +96,7 @@ class MPLCOptimizer:
         output = eqx.filter_vmap(lambda system: system())(configured_system)
         return output
 
-    def get_spectral_intensity(self) -> np.ndarray:
+    def get_spectral_intensity(self) -> Array:
         """
         Propagate all wavelengths and return the stack of output intensity
         arrays, shape (n_systems, n_modes, n_wavelengths, wf_npixels, wf_npixels).
@@ -104,7 +105,7 @@ class MPLCOptimizer:
         intensity = np.abs(output_field) ** 2
         return intensity
 
-    def get_broadband_intensity(self) -> np.ndarray:
+    def get_broadband_intensity(self) -> Array:
         """
         Propagate all wavelengths and return the spectrally weighted
         intensity sum, shape (n_systems, n_modes, wf_npixels, wf_npixels).
@@ -113,7 +114,7 @@ class MPLCOptimizer:
         broadband_intensity = np.tensordot(self.wavelength_weights, intensity, axes=1)
         return broadband_intensity
 
-    def get_mode_coupling_matrix(self) -> np.ndarray:
+    def get_mode_coupling_matrix(self) -> Array:
         """
         Return the N_modes x N_modes mode-coupling matrix whose (i, j) entry
         is |<output_i | target_j>|^2, useful for diagnosing crosstalk.
@@ -126,7 +127,7 @@ class MPLCOptimizer:
 
     def make_optimizer(
         self,
-        params: list[str],
+        params: Sequence[str],
         learning_rate: float = 1e-3,
         optimizer: optax.GradientTransformation | None = None,
     ) -> tuple[optax.GradientTransformation, optax.OptState]:
@@ -136,29 +137,31 @@ class MPLCOptimizer:
 
         Parameters
         ----------
-        params : list[str]
+        params
             zodiax path strings, relative to ``self.params``, for the
             parameters to optimize.
-        learning_rate : float
+        learning_rate
             Learning rate passed to Adam when no custom optimizer is supplied.
-        optimizer : optax.GradientTransformation | None
+        optimizer, optional
             Custom optax optimizer; defaults to ``optax.adam(learning_rate)``.
 
         Returns
         -------
-        optimizer : optax.GradientTransformation
-        opt_state : optax.OptState
+        optimizer
+            The initialized optimizer.
+        opt_state
+            The optimizer's initial state.
         """
         ...
 
     def train_step(
         self,
-        params: list[str],
+        params: Sequence[str],
         optimizer: optax.GradientTransformation,
         opt_state: optax.OptState,
         loss_fn: str = "overlap",
-        loss_kwargs: dict | None = None,
-    ) -> tuple["MPLCOptimizer", optax.OptState, float]:
+        loss_kwargs: dict[str, object] | None = None,
+    ) -> tuple["MPLCOptimizer", optax.OptState, Array]:
         """
         Perform a single gradient-descent update step: apply ``self.params``
         to ``self.batched_system`` via `MPLCSystem.with_params` (vmapped),
@@ -167,21 +170,23 @@ class MPLCOptimizer:
 
         Returns
         -------
-        updated_model : MPLCOptimizer
+        updated_model
             Model with updated ``params``.
-        new_opt_state : optax.OptState
-        loss_value : float
+        new_opt_state
+            Updated optimizer state.
+        loss_value
+            Loss evaluated before applying this step's update.
         """
         ...
 
     def optimize(
         self,
-        params: list[str],
+        params: Sequence[str],
         n_steps: int = 500,
         learning_rate: float = 1e-3,
         optimizer: optax.GradientTransformation | None = None,
         loss_fn: str = "overlap",
-        loss_kwargs: dict | None = None,
+        loss_kwargs: dict[str, object] | None = None,
         log_every: int = 50,
         jit: bool = True,
     ) -> tuple["MPLCOptimizer", list[float]]:
@@ -190,30 +195,30 @@ class MPLCOptimizer:
 
         Parameters
         ----------
-        params : list[str]
+        params
             zodiax path strings, relative to ``self.params``, for the
             parameters to optimize.
-        n_steps : int
+        n_steps
             Number of gradient steps.
-        learning_rate : float
+        learning_rate
             Learning rate for the default Adam optimizer.
-        optimizer : optax.GradientTransformation | None
+        optimizer, optional
             Custom optax optimizer; overrides ``learning_rate`` when provided.
-        loss_fn : str
+        loss_fn
             Loss function to minimise: "overlap" (`loss_WFM`), "intensity",
             "crosstalk", or "combined".
-        loss_kwargs : dict | None
+        loss_kwargs, optional
             Extra kwargs forwarded to the loss function.
-        log_every : int
+        log_every
             Print loss every this many steps.
-        jit : bool
+        jit
             Whether to JIT-compile ``train_step``.
 
         Returns
         -------
-        optimized_model : MPLCOptimizer
+        optimized_model
             The model after ``n_steps`` updates.
-        loss_history : list[float]
+        loss_history
             Scalar loss recorded at every step.
         """
         ...
@@ -222,7 +227,7 @@ class MPLCOptimizer:
     # Diagnostics / visualisation helpers
     # ------------------------------------------------------------------
 
-    def get_phase_screens(self) -> list[np.ndarray]:
+    def get_phase_screens(self) -> list[Array]:
         """
         Extract and return a list of the current, per-system phase screen
         arrays obtained by applying ``self.params`` to ``self.batched_system``
