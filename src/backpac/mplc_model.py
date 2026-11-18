@@ -69,11 +69,11 @@ class MPLC(dl.OpticalLayer):
         target_coordspec_d: float,
         windowing_fwhm: float = None,
     ) -> None:
-        self.phase_screens = np.asarray(phase_screens, dtype=float)
+        self.phase_screens = np.asarray(phase_screens, dtype=np.float32)
         self.num_planes = self.phase_screens.shape[0]
         self.wf_npixels = self.phase_screens.shape[1]
 
-        self.delta_zs = np.asarray(delta_zs, dtype=float)
+        self.delta_zs = np.asarray(delta_zs, dtype=np.float32)
 
         self.array_diameter = array_diameter
         self.target_coordspec_n = target_coordspec_n
@@ -86,6 +86,7 @@ class MPLC(dl.OpticalLayer):
                 (self.wf_npixels, self.wf_npixels),
                 self.array_diameter,
                 self.windowing_fwhm,
+                dtype=self.phase_screens.dtype,
             )
         else:
             window = None
@@ -116,7 +117,12 @@ class MPLC(dl.OpticalLayer):
 
 
 def make_super_gaussian_aperture(
-    wf_shape, array_diameter, full_width_half_maximum, shape_parameter=5, center=None
+    wf_shape,
+    array_diameter,
+    full_width_half_maximum,
+    shape_parameter=5,
+    center=None,
+    dtype=None,
 ):
     """Make a super Gaussian aperture.
 
@@ -131,25 +137,30 @@ def make_super_gaussian_aperture(
         The Full Width Half Maximum of the super Gaussian aperture in metres.
     shape_parameter
         The shape parameter determines the exponential Gaussian fall off. p=1 is identical to a normal Gaussian and p=0.5 results in a Laplacian distribution.
+    dtype
+        Data type for output array. Defaults to np.float32.
 
     Returns
     -------
     super_gaussian_aperture
         The super Gaussian aperture.
     """
+    if dtype is None:
+        dtype = np.float32
+
     if center is None:
-        shift = np.zeros(2)
+        shift = np.zeros(2, dtype=dtype)
     else:
-        shift = center * np.ones(2)
+        shift = center * np.ones(2, dtype=dtype)
 
     sigma = (
         0.5 * full_width_half_maximum / (2 * np.log(2)) ** (1 / (2 * shape_parameter))
     )
     grid = np.meshgrid(
-        np.linspace(-array_diameter / 2, array_diameter / 2, wf_shape[0]),
-        np.linspace(-array_diameter / 2, array_diameter / 2, wf_shape[1]),
+        np.linspace(-array_diameter / 2, array_diameter / 2, wf_shape[0], dtype=dtype),
+        np.linspace(-array_diameter / 2, array_diameter / 2, wf_shape[1], dtype=dtype),
         indexing="ij",
     )
     r = np.sqrt((grid[0] - shift[0]) ** 2 + (grid[1] - shift[1]) ** 2)
     super_gaussian_aperture = np.exp(-((r / sigma) ** (2 * shape_parameter)))
-    return super_gaussian_aperture
+    return super_gaussian_aperture.astype(dtype)

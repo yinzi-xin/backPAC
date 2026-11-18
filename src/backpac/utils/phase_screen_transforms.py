@@ -31,6 +31,7 @@ def bin_phase_screens(phase_screens: Array, bin_size: int = 2) -> Array:
         Phase screens of the same shape as `phase_screens`, binned by
         `bin_size`.
     """
+    dtype = phase_screens.dtype
     num_planes, n, _ = phase_screens.shape
     assert n % bin_size == 0, (
         "wf_npixels must be divisible by bin_size to bin"
@@ -44,7 +45,7 @@ def bin_phase_screens(phase_screens: Array, bin_size: int = 2) -> Array:
         np.repeat(lc_phase_screens, bin_size, axis=1), bin_size, axis=2
     )
 
-    return binned_phase_screens
+    return binned_phase_screens.astype(dtype)
 
 
 def mask_to_beam_size(
@@ -93,7 +94,8 @@ def _shift(image: Array, shift: Array) -> Array:
     ny, nx = image.shape
     fy, fx = np.meshgrid(np.fft.fftfreq(ny), np.fft.fftfreq(nx), indexing="ij")
     phase_ramp = np.exp(-2j * np.pi * (fy * shift[0] + fx * shift[1]))
-    return np.real(np.fft.ifft2(np.fft.fft2(image) * phase_ramp))
+    result = np.real(np.fft.ifft2(np.fft.fft2(image) * phase_ramp))
+    return result.astype(image.dtype)
 
 
 def apply_random_shifts(

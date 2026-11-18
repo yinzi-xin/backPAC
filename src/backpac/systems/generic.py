@@ -89,26 +89,32 @@ class MPLCSystem(zdx.Base):
         windowing_fwhm: float | None = None,
         telescope_modes: Array | None = None,
     ) -> None:
-        self.input_modes = input_modes
+        self.input_modes = np.asarray(input_modes, dtype=np.float32)
         self.wf_npixels = input_modes.shape[
             1
         ]  # Assuming input_modes has shape (n_modes, wf_npixels, wf_npixels)
-        self.target_modes = target_modes
-        self.aperture_diameter = aperture_diameter
-        self.mplc_diameter = mplc_diameter
-        self.array_diameter = array_diameter
-        self.bin_size = bin_size
-        self.num_planes = num_planes
-        self.total_length = total_length
-        self.target_coordspec_n = target_coordspec_n
-        self.target_coordspec_d = target_coordspec_d
-        self.wavelengths = wavelengths
+        self.target_modes = np.asarray(target_modes, dtype=np.float32)
+        self.aperture_diameter = float(aperture_diameter)
+        self.mplc_diameter = float(mplc_diameter)
+        self.array_diameter = float(array_diameter)
+        self.bin_size = int(bin_size)
+        self.num_planes = int(num_planes)
+        self.total_length = float(total_length)
+        self.target_coordspec_n = int(target_coordspec_n)
+        self.target_coordspec_d = float(target_coordspec_d)
+        self.wavelengths = np.asarray(wavelengths, dtype=np.float32)
         self.windowing_fwhm = windowing_fwhm
-        self.telescope_modes = telescope_modes
+        self.telescope_modes = (
+            np.asarray(telescope_modes, dtype=np.float32)
+            if telescope_modes is not None
+            else None
+        )
 
         self.delta_zs = (
-            np.linspace(0, self.total_length, self.num_planes + 1)[1:]
-            - np.linspace(0, self.total_length, self.num_planes + 1)[:-1]
+            np.linspace(0, self.total_length, self.num_planes + 1, dtype=np.float32)[1:]
+            - np.linspace(0, self.total_length, self.num_planes + 1, dtype=np.float32)[
+                :-1
+            ]
         )
 
         self.mplc = MPLC(
