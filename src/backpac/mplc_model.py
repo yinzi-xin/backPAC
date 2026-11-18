@@ -46,6 +46,9 @@ class MPLC(dl.OpticalLayer):
         Number of pixels across the target plane.
     target_coordspec_d
         Physical size of the target plane pixels in metres.
+    windowing_fwhm
+        Full width half maximum of the super Gaussian windowing function applied to the phase screens, in metres.
+        If None, no windowing is applied.
     """
 
     phase_screens: Array
@@ -55,6 +58,7 @@ class MPLC(dl.OpticalLayer):
     array_diameter: float
     target_coordspec_n: int
     target_coordspec_d: float
+    windowing_fwhm: float
 
     def __init__(
         self,
@@ -63,6 +67,7 @@ class MPLC(dl.OpticalLayer):
         array_diameter: float,
         target_coordspec_n: int,
         target_coordspec_d: float,
+        windowing_fwhm: float = None,
     ) -> None:
         self.phase_screens = np.asarray(phase_screens, dtype=float)
         self.num_planes = self.phase_screens.shape[0]
@@ -73,10 +78,21 @@ class MPLC(dl.OpticalLayer):
         self.array_diameter = array_diameter
         self.target_coordspec_n = target_coordspec_n
         self.target_coordspec_d = target_coordspec_d
+        self.windowing_fwhm = windowing_fwhm
 
     def __call__(self, wavefront: dl.Wavefront) -> dl.Wavefront:
+        if self.windowing_fwhm is not None:
+            window = make_super_gaussian_aperture(
+                (self.wf_npixels, self.wf_npixels),
+                self.array_diameter,
+                self.windowing_fwhm,
+            )
+        else:
+            window = None
 
         for i in range(self.num_planes):
+            if window is not None:
+                self.phase_screens[i] *= window
             wavefront = dl.AberratedLayer(phase=self.phase_screens[i])(wavefront)
             if i < self.num_planes - 1:
                 between_planes = dl.MFTPropagator(
@@ -97,3 +113,43 @@ class MPLC(dl.OpticalLayer):
         )
 
         return output_propagator(wavefront)
+
+
+def make_super_gaussian_aperture(
+    wf_shape, array_diameter, full_width_half_maximum, shape_parameter=5, center=None
+):
+    """Make a super Gaussian aperture.
+
+    Parameters
+
+    ----------
+    wf_shape
+        The shape of the aperture
+    array_diameter
+        The physical size of the array in metres.
+    full_width_half_maximum
+        The Full Width Half Maximum of the super Gaussian aperture in metres.
+    shape_parameter
+        The shape parameter determines the exponential Gaussian fall off. p=1 is identical to a normal Gaussian and p=0.5 results in a Laplacian distribution.
+
+    Returns
+    -------
+    super_gaussian_aperture
+        The super Gaussian aperture.
+    """
+    if center is None:
+        shift = np.zeros(2)
+    else:
+        shift = center * np.ones(2)
+
+    sigma = (
+        0.5 * full_width_half_maximum / (2 * np.log(2)) ** (1 / (2 * shape_parameter))
+    )
+    grid = np.meshgrid(
+        np.linspace(-array_diameter / 2, array_diameter / 2, wf_shape[0]),
+        np.linspace(-array_diameter / 2, array_diameter / 2, wf_shape[1]),
+        indexing="ij",
+    )
+    r = np.sqrt((grid[0] - shift[0]) ** 2 + (grid[1] - shift[1]) ** 2)
+    super_gaussian_aperture = np.exp(-((r / sigma) ** (2 * shape_parameter)))
+    return super_gaussian_aperture

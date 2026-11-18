@@ -49,6 +49,9 @@ class MPLCSystem(zdx.Base):
     wavelengths
         Array of wavelengths to propagate through the MPLC system,
         shape (n_wavelengths,).
+    windowing_fwhm
+        Full width half maximum of the super Gaussian windowing function applied to the phase screens, in metres.
+        If None, no windowing is applied.
     telescope_modes, optional
         Array of telescope modes, shape (n_telescope_modes, wf_npixels, wf_npixels).
     """
@@ -66,6 +69,7 @@ class MPLCSystem(zdx.Base):
     target_coordspec_d: float
     wavelengths: Array
     mplc: MPLC
+    windowing_fwhm: float | None
     telescope_modes: Array | None
     delta_zs: Array
 
@@ -82,6 +86,7 @@ class MPLCSystem(zdx.Base):
         target_coordspec_n: int,
         target_coordspec_d: float,
         wavelengths: Array,
+        windowing_fwhm: float | None = None,
         telescope_modes: Array | None = None,
     ) -> None:
         self.input_modes = input_modes
@@ -98,6 +103,7 @@ class MPLCSystem(zdx.Base):
         self.target_coordspec_n = target_coordspec_n
         self.target_coordspec_d = target_coordspec_d
         self.wavelengths = wavelengths
+        self.windowing_fwhm = windowing_fwhm
         self.telescope_modes = telescope_modes
 
         self.delta_zs = (
@@ -111,6 +117,7 @@ class MPLCSystem(zdx.Base):
             array_diameter=self.array_diameter,
             target_coordspec_n=self.target_coordspec_n,
             target_coordspec_d=self.target_coordspec_d,
+            windowing_fwhm=self.windowing_fwhm,
         )
 
     def with_params(self, params: dict[str, Array]) -> "MPLCSystem":
